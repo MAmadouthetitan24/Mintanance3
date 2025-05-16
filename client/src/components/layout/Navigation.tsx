@@ -38,11 +38,25 @@ const Navigation: React.FC<NavigationProps> = ({ userRole = 'homeowner', isLogge
   
   // Connect to WebSocket for real-time notifications when user is logged in
   useEffect(() => {
-    if (user && isLoggedIn) {
-      // For Replit Auth, use claims.sub as the user ID
-      // The user object structure may vary depending on the auth method
-      const userId = user.id || (user as any).claims?.sub;
+    if (isLoggedIn) {
+      // For Replit Auth, the user object might contain the claims property
+      // Or it might have the ID directly depending on how auth is structured
+      let userId = '';
+      
+      if (user) {
+        if (typeof user === 'object') {
+          // Try to get ID from various possible structures
+          userId = (user as any).id || 
+                  (user as any).claims?.sub || 
+                  (user as any).sub || 
+                  '';
+        } else if (typeof user === 'string') {
+          userId = user;
+        }
+      }
+      
       if (userId) {
+        console.log('Connecting to WebSocket with user ID:', userId);
         connectWebSocket(userId);
       }
     }

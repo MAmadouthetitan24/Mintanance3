@@ -131,8 +131,12 @@ export function useWebSocket(userId: string | undefined) {
       
       socket.onopen = (event) => {
         setIsConnected(true);
-        if (originalOnOpen) {
-          originalOnOpen.call(socket, event);
+        if (originalOnOpen && socket) {
+          try {
+            originalOnOpen.call(socket, event);
+          } catch (error) {
+            console.error('Error calling original onopen handler:', error);
+          }
         }
       };
       

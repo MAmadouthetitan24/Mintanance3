@@ -38,7 +38,7 @@ export function NotificationCenter() {
       id: `job-${data.jobId}-${Date.now()}`,
       type: 'job_match',
       title: 'New Job Match!',
-      message: data.message || `You've been matched with a new job: ${data.title}`,
+      message: data.message || `You've been matched with a new job: ${data.title || 'Unnamed job'}`,
       jobId: data.jobId,
       timestamp: data.timestamp || new Date().toISOString(),
       read: false
@@ -51,11 +51,11 @@ export function NotificationCenter() {
     toast({
       title: newNotification.title,
       description: newNotification.message,
-      action: (
+      action: data.jobId ? (
         <Link href={`/jobs/${data.jobId}`}>
           <Button variant="link" size="sm">View Job</Button>
         </Link>
-      )
+      ) : undefined
     });
   });
   
