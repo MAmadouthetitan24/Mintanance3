@@ -1,14 +1,8 @@
-import React, { useState } from 'react';
-import { useLocation } from 'wouter';
-import { 
-  PaymentElement, 
-  useStripe, 
-  useElements 
-} from '@stripe/react-stripe-js';
+import { useState } from 'react';
+import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
+import { Loader2, LockIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { apiRequest } from '@/lib/queryClient';
 
 interface CheckoutFormProps {
   jobId: number;
@@ -20,14 +14,11 @@ export function CheckoutForm({ jobId, amount, onSuccess }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const { toast } = useToast();
-  const [, navigate] = useLocation();
   
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!stripe || !elements) {
@@ -35,100 +26,89 @@ export function CheckoutForm({ jobId, amount, onSuccess }: CheckoutFormProps) {
       return;
     }
 
-    setIsLoading(true);
-    setMessage(null);
+    setIsProcessing(true);
+    setErrorMessage(null);
 
     try {
+      // Confirm the payment
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: window.location.origin + `/payment/confirmation/${jobId}`,
+          return_url: `${window.location.origin}/payment-confirmation/${jobId}`,
+          payment_method_data: {
+            billing_details: {
+              // You can pre-fill user details here if available
+            },
+          },
         },
         redirect: 'if_required',
       });
 
       if (error) {
         // Show error to customer
-        setMessage(error.message || 'An unexpected error occurred');
+        setErrorMessage(error.message || 'An unknown error occurred');
         toast({
           title: 'Payment Failed',
-          description: error.message || 'There was a problem processing your payment',
+          description: error.message || 'An unknown error occurred',
           variant: 'destructive',
         });
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         // Payment succeeded
-        setSuccess(true);
-        setMessage('Payment successful! Redirecting...');
-        
-        // Update job payment status on the server
-        await apiRequest('POST', `/api/jobs/${jobId}/payment-success`, {
-          paymentId: paymentIntent.id,
-        });
-        
         toast({
           title: 'Payment Successful',
-          description: 'Your payment has been processed successfully',
+          description: 'Thank you for your payment!',
           variant: 'default',
         });
         
-        // Call the onSuccess callback if provided
         if (onSuccess) {
           onSuccess();
         }
-        
-        // Redirect after a short delay
-        setTimeout(() => {
-          navigate(`/job-detail/${jobId}`);
-        }, 2000);
-      } else {
-        setMessage('Payment processing. Please wait...');
       }
     } catch (err: any) {
-      setMessage(err.message || 'An error occurred during payment processing');
+      setErrorMessage(err.message || 'An unexpected error occurred');
       toast({
-        title: 'Error',
-        description: err.message || 'An error occurred during payment processing',
+        title: 'Payment Error',
+        description: err.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <PaymentElement />
+      <div className="border rounded-md p-4 bg-gray-50">
+        <PaymentElement />
+      </div>
       
-      {message && (
-        <div className={`flex items-center p-3 rounded-md ${success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {success ? (
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-          ) : (
-            <AlertCircle className="mr-2 h-4 w-4" />
-          )}
-          <p>{message}</p>
+      {errorMessage && (
+        <div className="text-red-500 text-sm bg-red-50 p-3 rounded-md">
+          {errorMessage}
         </div>
       )}
       
-      <Button 
-        type="submit" 
-        disabled={isLoading || !stripe || !elements || success} 
-        className="w-full"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : success ? (
-          <>
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            Payment Complete
-          </>
-        ) : (
-          `Pay $${(amount / 100).toFixed(2)}`
-        )}
-      </Button>
+      <div className="flex flex-col space-y-2">
+        <p className="text-sm text-gray-500 flex items-center mb-2">
+          <LockIcon className="h-3 w-3 mr-1" /> 
+          Your payment is processed securely via Stripe
+        </p>
+        
+        <Button 
+          type="submit" 
+          disabled={isProcessing || !stripe || !elements}
+          className="w-full"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            `Pay $${(amount / 100).toFixed(2)}`
+          )}
+        </Button>
+      </div>
     </form>
   );
 }
