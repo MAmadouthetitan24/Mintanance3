@@ -3,6 +3,7 @@ import { storage } from '../storage';
 import { isAuthenticated } from '../replitAuth';
 import { insertJobSheetSchema } from '@shared/schema';
 import { z } from 'zod';
+import { sendEmail, generateJobCompletionEmail } from '../email';
 
 const router = Router();
 
@@ -143,9 +144,44 @@ router.patch('/:id', isAuthenticated, async (req: Request, res: Response) => {
     // Update job sheet
     const updatedJobSheet = await storage.updateJobSheet(jobSheetId, req.body);
     
-    // If status is set to completed, update job status
+    // If status is set to completed, update job status and send email notification
     if (req.body.status === 'completed') {
+      const job = await storage.getJob(jobSheet.jobId);
       await storage.updateJob(jobSheet.jobId, { status: 'completed' });
+      
+      // Send email notification to homeowner
+      if (job) {
+        try {
+          // Get homeowner and contractor details
+          const homeowner = await storage.getUser(job.homeownerId);
+          const contractor = await storage.getUser(userId);
+          
+          if (homeowner && homeowner.email && contractor) {
+            // Generate job sheet URL
+            const jobSheetUrl = `${req.protocol}://${req.get('host')}/job-sheet/${jobSheet.id}`;
+            
+            // Generate email content
+            const emailHtml = generateJobCompletionEmail(
+              job.title,
+              `${contractor.firstName || ''} ${contractor.lastName || 'Contractor'}`,
+              new Date(),
+              jobSheetUrl
+            );
+            
+            // Send email
+            await sendEmail({
+              to: homeowner.email,
+              subject: `Job Completed: ${job.title}`,
+              html: emailHtml
+            });
+            
+            console.log(`Completion email sent to ${homeowner.email} for job ${job.id}`);
+          }
+        } catch (emailError) {
+          // Log email error but don't fail the request
+          console.error('Error sending job completion email:', emailError);
+        }
+      }
     }
     
     return res.json(updatedJobSheet);

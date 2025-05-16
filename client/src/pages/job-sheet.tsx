@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 
 // Lazily load the map component to improve initial load performance
 const LocationMap = lazy(() => import('@/components/job-sheets/LocationMap'));
+const PhotoGallery = lazy(() => import('@/components/job-sheets/PhotoGallery'));
 import { 
   Clock, 
   MapPin, 
