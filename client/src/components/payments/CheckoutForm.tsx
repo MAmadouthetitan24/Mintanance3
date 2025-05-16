@@ -1,154 +1,134 @@
 import React, { useState } from 'react';
-import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { apiRequest } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
+import { 
+  PaymentElement, 
+  useStripe, 
+  useElements 
+} from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
 
-type CheckoutFormProps = {
-  amount: number;
+interface CheckoutFormProps {
   jobId: number;
+  amount: number;
   onSuccess?: () => void;
-  onCancel?: () => void;
-};
+}
 
-const cardElementOptions = {
-  style: {
-    base: {
-      fontSize: '16px',
-      color: '#32325d',
-      fontFamily: '"Inter", Helvetica, sans-serif',
-      '::placeholder': {
-        color: '#aab7c4',
-      },
-    },
-    invalid: {
-      color: '#dc2626',
-      iconColor: '#dc2626',
-    },
-  },
-  hidePostalCode: true,
-};
-
-export default function CheckoutForm({ amount, jobId, onSuccess, onCancel }: CheckoutFormProps) {
+export function CheckoutForm({ jobId, amount, onSuccess }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
 
     if (!stripe || !elements) {
-      // Stripe.js has not loaded yet
+      // Stripe.js hasn't loaded yet
       return;
     }
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      return;
-    }
-
-    setIsProcessing(true);
-    setPaymentError(null);
+    setIsLoading(true);
+    setMessage(null);
 
     try {
-      // Create payment intent on the server
-      const paymentIntentResponse = await apiRequest('POST', '/api/create-payment-intent', {
-        amount,
-        jobId,
-      });
-
-      if (!paymentIntentResponse.ok) {
-        const errorData = await paymentIntentResponse.json();
-        throw new Error(errorData.message || 'Failed to create payment intent');
-      }
-
-      const { clientSecret } = await paymentIntentResponse.json();
-
-      // Confirm the payment with Stripe.js
-      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: cardElement,
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: window.location.origin + `/payment/confirmation/${jobId}`,
         },
+        redirect: 'if_required',
       });
 
       if (error) {
-        throw new Error(error.message || 'Payment failed');
-      }
-
-      if (paymentIntent.status === 'succeeded') {
+        // Show error to customer
+        setMessage(error.message || 'An unexpected error occurred');
         toast({
-          title: 'Payment Successful',
-          description: `Payment of $${(amount / 100).toFixed(2)} was processed successfully.`,
-          variant: 'success',
+          title: 'Payment Failed',
+          description: error.message || 'There was a problem processing your payment',
+          variant: 'destructive',
         });
+      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+        // Payment succeeded
+        setSuccess(true);
+        setMessage('Payment successful! Redirecting...');
         
         // Update job payment status on the server
         await apiRequest('POST', `/api/jobs/${jobId}/payment-success`, {
-          paymentIntentId: paymentIntent.id,
+          paymentId: paymentIntent.id,
         });
         
+        toast({
+          title: 'Payment Successful',
+          description: 'Your payment has been processed successfully',
+          variant: 'default',
+        });
+        
+        // Call the onSuccess callback if provided
         if (onSuccess) {
           onSuccess();
         }
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+          navigate(`/job-detail/${jobId}`);
+        }, 2000);
+      } else {
+        setMessage('Payment processing. Please wait...');
       }
-    } catch (error: any) {
-      console.error('Payment error:', error);
-      setPaymentError(error.message || 'An error occurred during payment processing');
-      
+    } catch (err: any) {
+      setMessage(err.message || 'An error occurred during payment processing');
       toast({
-        title: 'Payment Failed',
-        description: error.message || 'An error occurred during payment processing',
+        title: 'Error',
+        description: err.message || 'An error occurred during payment processing',
         variant: 'destructive',
       });
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Payment Details</h3>
-        <div className="border rounded-md p-4 bg-white">
-          <CardElement options={cardElementOptions} />
-        </div>
-        
-        {paymentError && (
-          <div className="text-sm text-red-600">{paymentError}</div>
-        )}
-        
-        <div className="text-right text-sm text-gray-500">
-          You will be charged ${(amount / 100).toFixed(2)}
-        </div>
-      </div>
+      <PaymentElement />
       
-      <div className="flex justify-end space-x-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isProcessing}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={!stripe || isProcessing}
-          className="min-w-[120px]"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
+      {message && (
+        <div className={`flex items-center p-3 rounded-md ${success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {success ? (
+            <CheckCircle2 className="mr-2 h-4 w-4" />
           ) : (
-            `Pay $${(amount / 100).toFixed(2)}`
+            <AlertCircle className="mr-2 h-4 w-4" />
           )}
-        </Button>
-      </div>
+          <p>{message}</p>
+        </div>
+      )}
+      
+      <Button 
+        type="submit" 
+        disabled={isLoading || !stripe || !elements || success} 
+        className="w-full"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing...
+          </>
+        ) : success ? (
+          <>
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            Payment Complete
+          </>
+        ) : (
+          `Pay $${(amount / 100).toFixed(2)}`
+        )}
+      </Button>
     </form>
   );
 }

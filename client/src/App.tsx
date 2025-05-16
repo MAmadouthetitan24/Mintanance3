@@ -18,6 +18,7 @@ const Calendar = lazy(() => import("@/pages/calendar"));
 const JobSheet = lazy(() => import("@/pages/job-sheet"));
 const Messaging = lazy(() => import("@/pages/messaging"));
 const Profile = lazy(() => import("@/pages/profile"));
+const Payment = lazy(() => import("@/pages/payment"));
 
 // Loading component for lazy loaded routes
 const PageLoader = () => (
@@ -112,6 +113,9 @@ function Router() {
         } />
         <Route path="/profile" component={() => 
           <ProtectedRoute component={Profile} />
+        } />
+        <Route path="/payment/:id" component={(params) => 
+          <ProtectedRoute component={Payment} params={params} />
         } />
         
         {/* 404 route */}

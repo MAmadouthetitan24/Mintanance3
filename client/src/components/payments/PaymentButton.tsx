@@ -18,7 +18,7 @@ export function PaymentButton({
   disabled = false,
   className = ''
 }: PaymentButtonProps) {
-  const [, navigate] = useNavigate();
+  const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handlePaymentClick = () => {

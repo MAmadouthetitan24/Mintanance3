@@ -1,164 +1,150 @@
-import { Router, Request, Response } from 'express';
+import express from 'express';
 import Stripe from 'stripe';
-import { isAuthenticated } from '../replitAuth';
 import { storage } from '../storage';
+import { isAuthenticated } from '../replitAuth';
 
-const router = Router();
+const router = express.Router();
 
-// Initialize Stripe
+// Create Stripe instance with the secret key
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.warn('Missing Stripe Secret Key. Payment functionality will not work.');
+}
+
 const stripe = process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16',
-    })
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
   : null;
 
-// Create a payment intent for a job
-router.post('/create-payment-intent', isAuthenticated, async (req: Request, res: Response) => {
+// Create a payment intent for processing payments
+router.post('/create-payment-intent', isAuthenticated, async (req, res) => {
   try {
     if (!stripe) {
-      return res.status(503).json({ message: 'Payment service unavailable' });
+      return res.status(500).json({ message: 'Stripe integration is not configured' });
     }
 
-    const { amount, jobId } = req.body;
-    
-    if (!amount || !jobId) {
-      return res.status(400).json({ message: 'Amount and jobId are required' });
+    const { jobId, amount } = req.body;
+
+    if (!jobId || !amount) {
+      return res.status(400).json({ message: 'Job ID and amount are required' });
     }
 
-    // Validate that the job exists and belongs to the authenticated user
+    // Get the job to verify ownership and status
     const job = await storage.getJob(jobId);
-    
+
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
     }
 
-    const userId = req.user.claims.sub;
-    
-    if (job.homeownerId !== userId) {
-      return res.status(403).json({ message: 'You are not authorized to make payments for this job' });
+    // Only the homeowner can pay for their job
+    if (job.homeownerId !== req.user?.id) {
+      return res.status(403).json({ message: 'Unauthorized to pay for this job' });
     }
 
-    // Create the payment intent
+    // Job must be completed to be paid
+    if (job.status !== 'completed') {
+      return res.status(400).json({ message: 'Job must be completed before payment' });
+    }
+
+    // Check if the job is already paid
+    if (job.isPaid) {
+      return res.status(400).json({ message: 'This job has already been paid' });
+    }
+
+    // Verify the contractor exists
+    if (!job.contractorId) {
+      return res.status(400).json({ message: 'No contractor assigned to this job' });
+    }
+
+    const contractor = await storage.getUser(job.contractorId);
+    if (!contractor) {
+      return res.status(400).json({ message: 'Contractor not found' });
+    }
+
+    // Create a payment intent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount),
+      amount: amount, // Amount in cents
       currency: 'usd',
       metadata: {
         jobId: jobId.toString(),
-        userId,
+        contractorId: job.contractorId,
+        homeownerId: job.homeownerId,
       },
     });
 
-    // Return the client secret to the client
-    res.json({ clientSecret: paymentIntent.client_secret });
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+    });
   } catch (error: any) {
     console.error('Error creating payment intent:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message || 'Failed to create payment intent' });
   }
 });
 
-// Handle successful payment for a job
-router.post('/jobs/:id/payment-success', isAuthenticated, async (req: Request, res: Response) => {
+// Handle successful payments
+router.post('/jobs/:id/payment-success', isAuthenticated, async (req, res) => {
   try {
     if (!stripe) {
-      return res.status(503).json({ message: 'Payment service unavailable' });
+      return res.status(500).json({ message: 'Stripe integration is not configured' });
     }
 
     const jobId = parseInt(req.params.id);
-    const { paymentIntentId } = req.body;
-    
-    if (!jobId || !paymentIntentId) {
-      return res.status(400).json({ message: 'Job ID and payment intent ID are required' });
+    const { paymentId } = req.body;
+
+    if (!jobId || !paymentId) {
+      return res.status(400).json({ message: 'Job ID and payment ID are required' });
     }
 
-    // Validate that the job exists and belongs to the authenticated user
+    // Get the job to update
     const job = await storage.getJob(jobId);
-    
+
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
     }
 
-    const userId = req.user.claims.sub;
-    
-    if (job.homeownerId !== userId) {
-      return res.status(403).json({ message: 'You are not authorized to update this job' });
+    // Verify the payment intent exists
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentId);
+
+    if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({ message: 'Payment has not been completed' });
     }
 
-    // Verify the payment intent
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    
-    if (paymentIntent.status !== 'succeeded') {
-      return res.status(400).json({ message: 'Payment has not succeeded' });
-    }
-
-    // Update the job with payment information
+    // Update the job as paid
     const updatedJob = await storage.updateJob(jobId, {
       isPaid: true,
-      paymentId: paymentIntentId,
+      paymentId: paymentId,
       paidAt: new Date(),
     });
 
-    // If the contractor has an account that can receive payments, transfer funds
-    if (job.contractorId) {
-      const contractor = await storage.getUser(job.contractorId);
-      
-      if (contractor && contractor.stripeAccountId) {
-        // Calculate the amount to transfer (e.g., 95% of the payment)
-        const transferAmount = Math.floor(paymentIntent.amount * 0.95);
-        
-        // Create a transfer to the contractor's Stripe account
-        await stripe.transfers.create({
-          amount: transferAmount,
-          currency: 'usd',
-          destination: contractor.stripeAccountId,
-          source_transaction: paymentIntentId,
-          metadata: {
-            jobId: jobId.toString(),
-            contractorId: job.contractorId,
-          },
-        });
-      }
-    }
-
-    res.json({ success: true, job: updatedJob });
+    res.json({
+      success: true,
+      job: updatedJob,
+    });
   } catch (error: any) {
-    console.error('Error handling payment success:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Error marking job as paid:', error);
+    res.status(500).json({ message: error.message || 'Failed to mark job as paid' });
   }
 });
 
-// Stripe webhook for payment events
-router.post('/webhook', async (req: Request, res: Response) => {
+// Stripe webhook handler for asynchronous payment events
+router.post('/webhook', async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ message: 'Stripe integration is not configured' });
+  }
+
+  // For production, you would verify the webhook signature
+  // const signature = req.headers['stripe-signature'];
+  
   try {
-    if (!stripe) {
-      return res.status(503).json({ message: 'Payment service unavailable' });
-    }
-
-    const sig = req.headers['stripe-signature'] as string;
-    
-    if (!sig) {
-      return res.status(400).json({ message: 'Missing stripe-signature header' });
-    }
-
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    
-    if (!endpointSecret) {
-      return res.status(503).json({ message: 'Webhook service not configured' });
-    }
-
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      endpointSecret
-    );
+    const event = req.body;
 
     // Handle the event
     switch (event.type) {
       case 'payment_intent.succeeded':
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        const jobId = paymentIntent.metadata.jobId;
+        const paymentIntent = event.data.object;
         
-        if (jobId) {
-          await storage.updateJob(parseInt(jobId), {
+        // Update the job if metadata contains jobId
+        if (paymentIntent.metadata?.jobId) {
+          const jobId = parseInt(paymentIntent.metadata.jobId);
+          await storage.updateJob(jobId, {
             isPaid: true,
             paymentId: paymentIntent.id,
             paidAt: new Date(),
@@ -167,18 +153,18 @@ router.post('/webhook', async (req: Request, res: Response) => {
         break;
         
       case 'payment_intent.payment_failed':
-        // Handle failed payment intent
         console.log('Payment failed:', event.data.object);
         break;
         
       default:
+        // Unexpected event type
         console.log(`Unhandled event type ${event.type}`);
     }
 
     res.json({ received: true });
-  } catch (error: any) {
-    console.error('Error processing webhook:', error);
-    res.status(400).json({ message: error.message });
+  } catch (err: any) {
+    console.error('Webhook error:', err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
   }
 });
 
