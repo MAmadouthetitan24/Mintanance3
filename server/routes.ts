@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
   insertJobSchema, insertReviewSchema, insertMessageSchema, 
-  insertQuoteSchema, insertJobSheetSchema, insertScheduleSlotSchema
+  insertQuoteSchema, insertJobSheetSchema, insertScheduleSlotSchema,
+  insertAppointmentProposalSchema, insertCalendarIntegrationSchema
 } from "@shared/schema";
 import * as path from "path";
 import multer from "multer";
@@ -11,6 +12,7 @@ import { existsSync, mkdirSync } from "fs";
 import { WebSocketServer } from "ws";
 import crypto from "crypto";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import schedulingRoutes from "./routes/scheduling";
 
 // Set up storage for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -58,6 +60,9 @@ function verifyPassword(password: string, hashedPassword: string): boolean {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up Replit Auth middleware
   await setupAuth(app);
+  
+  // Register scheduling routes
+  app.use('/api', schedulingRoutes);
   
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

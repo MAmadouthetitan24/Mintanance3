@@ -493,4 +493,120 @@ export class DatabaseStorage implements IStorage {
       status: "matched",
     });
   }
+
+  // Schedule Slots Methods
+  async getScheduleSlot(id: number): Promise<ScheduleSlot | undefined> {
+    const [slot] = await db
+      .select()
+      .from(scheduleSlots)
+      .where(eq(scheduleSlots.id, id));
+    return slot;
+  }
+
+  async deleteScheduleSlot(id: number): Promise<void> {
+    await db
+      .delete(scheduleSlots)
+      .where(eq(scheduleSlots.id, id));
+  }
+
+  // Appointment Proposals Methods
+  async createAppointmentProposal(proposal: InsertAppointmentProposal): Promise<AppointmentProposal> {
+    const [newProposal] = await db
+      .insert(appointmentProposals)
+      .values(proposal)
+      .returning();
+    return newProposal;
+  }
+
+  async getAppointmentProposal(id: number): Promise<AppointmentProposal | undefined> {
+    const [proposal] = await db
+      .select()
+      .from(appointmentProposals)
+      .where(eq(appointmentProposals.id, id));
+    return proposal;
+  }
+
+  async getAppointmentProposalsByJob(jobId: number): Promise<AppointmentProposal[]> {
+    return db
+      .select()
+      .from(appointmentProposals)
+      .where(eq(appointmentProposals.jobId, jobId));
+  }
+
+  async getAppointmentProposalsByUser(userId: string): Promise<AppointmentProposal[]> {
+    // Find all jobs where the user is either homeowner or contractor
+    const userJobs = await db
+      .select()
+      .from(jobs)
+      .where(
+        or(
+          eq(jobs.homeownerId, userId),
+          eq(jobs.contractorId, userId)
+        )
+      );
+    
+    // Get all job IDs
+    const jobIds = userJobs.map(job => job.id);
+    
+    if (jobIds.length === 0) {
+      return [];
+    }
+    
+    // Get all proposals for these jobs
+    return db
+      .select()
+      .from(appointmentProposals)
+      .where(sql`${appointmentProposals.jobId} IN (${jobIds})`);
+  }
+
+  async updateAppointmentProposal(id: number, data: Partial<AppointmentProposal>): Promise<AppointmentProposal | undefined> {
+    const [updatedProposal] = await db
+      .update(appointmentProposals)
+      .set(data)
+      .where(eq(appointmentProposals.id, id))
+      .returning();
+    return updatedProposal;
+  }
+
+  // Calendar Integrations Methods
+  async createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration> {
+    const [newIntegration] = await db
+      .insert(calendarIntegrations)
+      .values(integration)
+      .returning();
+    return newIntegration;
+  }
+
+  async getCalendarIntegration(id: number): Promise<CalendarIntegration | undefined> {
+    const [integration] = await db
+      .select()
+      .from(calendarIntegrations)
+      .where(eq(calendarIntegrations.id, id));
+    return integration;
+  }
+
+  async getCalendarIntegrationsByUser(userId: string): Promise<CalendarIntegration[]> {
+    return db
+      .select()
+      .from(calendarIntegrations)
+      .where(eq(calendarIntegrations.userId, userId));
+  }
+
+  async updateCalendarIntegration(id: number, data: Partial<CalendarIntegration>): Promise<CalendarIntegration | undefined> {
+    const [updatedIntegration] = await db
+      .update(calendarIntegrations)
+      .set({
+        ...data,
+        updatedAt: new Date()
+      })
+      .where(eq(calendarIntegrations.id, id))
+      .returning();
+    return updatedIntegration;
+  }
+
+  async deleteCalendarIntegration(id: number): Promise<void> {
+    await db
+      .delete(calendarIntegrations)
+      .where(eq(calendarIntegrations.id, id));
+  }
 }
