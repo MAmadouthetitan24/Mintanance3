@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { loadStripe } from '@stripe/stripe-js';
 import { 
   Card, 
   CardContent, 
   CardHeader, 
-  CardTitle 
+  CardTitle, 
+  CardDescription,
+  CardFooter
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
@@ -92,6 +93,11 @@ export default function PaymentConfirmation() {
              status === 'success' ? 'Payment Successful!' : 
              'Payment Failed'}
           </CardTitle>
+          {status === 'success' && (
+            <CardDescription>
+              Your transaction has been completed
+            </CardDescription>
+          )}
         </CardHeader>
         
         <CardContent className="p-6 space-y-6">
@@ -102,16 +108,14 @@ export default function PaymentConfirmation() {
           ) : status === 'success' ? (
             <>
               <p className="text-center text-gray-600">
-                Thank you for your payment. Your transaction has been completed successfully.
-              </p>
-              <p className="text-center text-gray-600">
-                A receipt has been sent to your email address.
+                Thank you for your payment. A receipt has been sent to your email address.
               </p>
               {job && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-md">
                   <h3 className="font-medium mb-2">Payment Details:</h3>
                   <p><span className="font-medium">Service:</span> {job.title}</p>
                   <p><span className="font-medium">Amount Paid:</span> ${((job.actualCost || job.estimatedCost || 0) / 100).toFixed(2)}</p>
+                  <p><span className="font-medium">Date:</span> {new Date().toLocaleDateString()}</p>
                 </div>
               )}
             </>
@@ -125,14 +129,14 @@ export default function PaymentConfirmation() {
               </p>
             </>
           )}
-          
-          <div className="flex justify-center mt-6">
-            <Button onClick={handleBack} variant={status === 'error' ? 'default' : 'outline'}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {status === 'success' ? 'Return to Job Details' : 'Try Again'}
-            </Button>
-          </div>
         </CardContent>
+        
+        <CardFooter className="flex justify-center p-6">
+          <Button onClick={handleBack} variant={status === 'error' ? 'default' : 'outline'}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {status === 'success' ? 'Return to Job Details' : 'Try Again'}
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );

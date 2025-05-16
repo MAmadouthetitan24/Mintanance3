@@ -335,10 +335,9 @@ export default function JobDetail() {
           </Button>
           
           {/* Payment button for homeowners */}
-          {isHomeowner && (
+          {isHomeowner && job.status === 'completed' && (
             <PaymentButton 
               jobId={job.id} 
-              jobStatus={job.status} 
               isPaid={!!job.isPaid}
               className="w-full sm:w-auto sm:ml-auto"
             />
