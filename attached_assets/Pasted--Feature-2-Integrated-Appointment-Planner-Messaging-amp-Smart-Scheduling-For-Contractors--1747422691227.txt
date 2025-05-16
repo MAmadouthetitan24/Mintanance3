@@ -1,0 +1,57 @@
+�� Feature 2: Integrated Appointment Planner, Messaging &amp; Smart Scheduling
+For Contractors:
+ Built-in calendar to manage upcoming jobs.
+ Propose time slots upon winning a job.
+ Sync with external calendars (Google, Apple, Outlook).
+ Receive automated reminders for appointments.
+For Homeowners:
+ Receive appointment proposals via push notification or in-app alert.
+ Accept, decline, or suggest alternative times.
+ View all appointments in a visual calendar.
+ Get reminders and real-time updates.
+In-App Messaging:
+ Secure chat between homeowners and contractors (enabled post-
+assignment).
+ Share access instructions or ask quick questions.
+ Message history stored per job.
+Smart Scheduling Features:
+ Auto-Suggested Time Slots based on availability and travel time.
+ Conflict Detection to prevent double-booking.
+ Location-Aware Planning to optimize contractor routes.
+ Rescheduling Flow for minimal friction.
+Value to the Platform:
+ Reduces communication delays and missed appointments.
+ Enhances professionalism and reliability.
+ Builds trust through transparency.
+
+�� Feature 3: Contractor Bio Profiles (Post-Assignment Visibility)
+
+For Contractors:
+ Create a personalized profile with bio, trade specializations, experience, and
+certifications.
+ Profiles visible only after job assignment.
+For Homeowners:
+ View assigned contractor’s profile to build trust.
+ See credentials, ratings, and a brief introduction.
+Platform Controls:
+ Moderated profiles to ensure professionalism.
+ Optional badges for top-rated or verified contractors.
+Value to the Platform:
+ Enhances transparency and trust.
+ Adds value to contractor subscriptions.
+ Encourages quality and accountability.
+
+�� Feature 4: Digital Job Sheets with Check-In/Check-Out &amp; Signature Capture
+For Contractors:
+ Receive a digital job sheet for each task.
+ Check in/out via the app with GPS and time stamps.
+ Fill in work details, materials used, and upload photos.
+ Capture a digital signature from the homeowner.
+For Homeowners:
+ Receive a job summary after completion.
+ View time logs, work descriptions, and notes.
+ Sign off using a digital signature.
+ Rate the contractor and confirm satisfaction.
+Platform Features:
+ Auto-Generated Job Reports stored in homeowner history.
+ Dispute Resolution Support using job sheets and signatures.

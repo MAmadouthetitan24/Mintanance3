@@ -133,6 +133,39 @@ export const scheduleSlots = pgTable("schedule_slots", {
   endTime: timestamp("end_time").notNull(),
   isBooked: boolean("is_booked").default(false),
   jobId: integer("job_id").references(() => jobs.id),
+  title: text("title"),
+  description: text("description"),
+  location: text("location"),
+  status: text("status").default("available"), // available, proposed, confirmed, cancelled
+  externalCalendarId: text("external_calendar_id"), // For syncing with external calendars
+  externalCalendarType: text("external_calendar_type"), // google, apple, outlook
+});
+
+// Calendar integration preferences
+export const calendarIntegrations = pgTable("calendar_integrations", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  provider: text("provider").notNull(), // google, apple, outlook
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiry: timestamp("token_expiry"),
+  calendarId: text("calendar_id"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Appointment proposals for scheduling negotiation
+export const appointmentProposals = pgTable("appointment_proposals", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => jobs.id),
+  proposerId: varchar("proposer_id").notNull().references(() => users.id), // Who proposed this time (contractor or homeowner)
+  slotId: integer("slot_id").references(() => scheduleSlots.id),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  status: text("status").notNull().default("pending"), // pending, accepted, rejected, countered
+  message: text("message"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // INSERT SCHEMAS
@@ -151,6 +184,8 @@ export const insertMessageSchema = createInsertSchema(messages).omit({ id: true,
 export const insertJobSheetSchema = createInsertSchema(jobSheets).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
 export const insertScheduleSlotSchema = createInsertSchema(scheduleSlots).omit({ id: true });
+export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAppointmentProposalSchema = createInsertSchema(appointmentProposals).omit({ id: true, createdAt: true });
 
 // TYPES
 export type User = typeof users.$inferSelect;
@@ -180,6 +215,12 @@ export type InsertReview = z.infer<typeof insertReviewSchema>;
 
 export type ScheduleSlot = typeof scheduleSlots.$inferSelect;
 export type InsertScheduleSlot = z.infer<typeof insertScheduleSlotSchema>;
+
+export type CalendarIntegration = typeof calendarIntegrations.$inferSelect;
+export type InsertCalendarIntegration = z.infer<typeof insertCalendarIntegrationSchema>;
+
+export type AppointmentProposal = typeof appointmentProposals.$inferSelect;
+export type InsertAppointmentProposal = z.infer<typeof insertAppointmentProposalSchema>;
 
 // Extended user profile schema for additional info after sign up
 export const userProfileSchema = z.object({
