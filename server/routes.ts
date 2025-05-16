@@ -13,6 +13,7 @@ import { WebSocketServer } from "ws";
 import crypto from "crypto";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import schedulingRoutes from "./routes/scheduling";
+import jobSheetsRoutes from "./routes/job-sheets";
 
 // Set up storage for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
