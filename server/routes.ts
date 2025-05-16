@@ -14,6 +14,7 @@ import crypto from "crypto";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import schedulingRoutes from "./routes/scheduling";
 import jobSheetsRoutes from "./routes/job-sheets";
+import paymentsRoutes from "./routes/payments";
 
 // Set up storage for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -67,6 +68,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register job sheets routes
   app.use('/api', jobSheetsRoutes);
+  
+  // Register payment routes
+  app.use('/api', paymentsRoutes);
   
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

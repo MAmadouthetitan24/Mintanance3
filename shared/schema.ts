@@ -31,6 +31,11 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").default(true),
   averageRating: real("average_rating").default(0),
   reviewCount: integer("review_count").default(0),
+  // Stripe related fields for contractors
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeAccountId: text("stripe_account_id"), // For receiving payments as a contractor
+  stripeAccountStatus: text("stripe_account_status"), // pending, verified, rejected
+  // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -74,6 +79,10 @@ export const jobs = pgTable("jobs", {
   estimatedCost: integer("estimated_cost"), // in cents
   actualCost: integer("actual_cost"), // in cents
   photos: text("photos").array(),
+  // Payment fields
+  isPaid: boolean("is_paid").default(false),
+  paymentId: text("payment_id"), // Stripe payment intent ID
+  paidAt: timestamp("paid_at"),
 });
 
 // Job quotes provided by contractors
