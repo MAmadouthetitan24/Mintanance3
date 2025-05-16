@@ -374,7 +374,7 @@ export default function ContractorDashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <Tool className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <Wrench className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900">No jobs found</h3>
                     <p className="text-gray-500 mt-1 max-w-md mx-auto">
                       You don't have any jobs yet. Browse available jobs or wait for job matches based on your skills.
