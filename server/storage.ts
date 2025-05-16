@@ -63,9 +63,25 @@ export interface IStorage {
   
   // Schedule Slots
   createScheduleSlot(slot: InsertScheduleSlot): Promise<ScheduleSlot>;
+  getScheduleSlot(id: number): Promise<ScheduleSlot | undefined>;
   getScheduleSlotsByContractor(contractorId: string): Promise<ScheduleSlot[]>;
   getAvailableSlotsByContractor(contractorId: string): Promise<ScheduleSlot[]>;
   updateScheduleSlot(id: number, slot: Partial<ScheduleSlot>): Promise<ScheduleSlot | undefined>;
+  deleteScheduleSlot(id: number): Promise<void>;
+  
+  // Appointment Proposals
+  createAppointmentProposal(proposal: InsertAppointmentProposal): Promise<AppointmentProposal>;
+  getAppointmentProposal(id: number): Promise<AppointmentProposal | undefined>;
+  getAppointmentProposalsByJob(jobId: number): Promise<AppointmentProposal[]>;
+  getAppointmentProposalsByUser(userId: string): Promise<AppointmentProposal[]>;
+  updateAppointmentProposal(id: number, data: Partial<AppointmentProposal>): Promise<AppointmentProposal | undefined>;
+  
+  // Calendar Integrations
+  createCalendarIntegration(integration: InsertCalendarIntegration): Promise<CalendarIntegration>;
+  getCalendarIntegration(id: number): Promise<CalendarIntegration | undefined>;
+  getCalendarIntegrationsByUser(userId: string): Promise<CalendarIntegration[]>;
+  updateCalendarIntegration(id: number, data: Partial<CalendarIntegration>): Promise<CalendarIntegration | undefined>;
+  deleteCalendarIntegration(id: number): Promise<void>;
   
   // Smart Distribution Algorithm
   findMatchingContractors(jobId: number): Promise<User[]>;
