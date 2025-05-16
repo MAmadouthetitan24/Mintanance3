@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, varchar, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { index } from "drizzle-orm/pg-core";
@@ -103,13 +103,18 @@ export const messages = pgTable("messages", {
 export const jobSheets = pgTable("job_sheets", {
   id: serial("id").primaryKey(),
   jobId: integer("job_id").notNull().references(() => jobs.id),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
+  contractorNotes: text("contractor_notes"),
+  materialsUsed: text("materials_used"),
+  timeSpent: varchar("time_spent", { length: 50 }),
+  additionalCosts: integer("additional_costs").default(0),
+  photos: text("photos").array(),
   checkInTime: timestamp("check_in_time"),
   checkOutTime: timestamp("check_out_time"),
-  workDetails: text("work_details"),
-  materials: text("materials"),
-  photos: text("photos").array(),
-  homeownerSignature: text("homeowner_signature"),
-  contractorSignature: text("contractor_signature"),
+  checkInLocation: jsonb("check_in_location"),
+  checkOutLocation: jsonb("check_out_location"),
+  signature: text("signature"),
+  status: varchar("status", { length: 20 }).notNull().default("not_started"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -181,7 +186,11 @@ export const insertContractorTradeSchema = createInsertSchema(contractorTrades).
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true, contractorId: true, status: true });
 export const insertQuoteSchema = createInsertSchema(quotes).omit({ id: true, createdAt: true, status: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true });
-export const insertJobSheetSchema = createInsertSchema(jobSheets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertJobSheetSchema = createInsertSchema(jobSheets).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
 export const insertScheduleSlotSchema = createInsertSchema(scheduleSlots).omit({ id: true });
 export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
