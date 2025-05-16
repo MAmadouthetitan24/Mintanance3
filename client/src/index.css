@@ -13,24 +13,26 @@
   --card-foreground: 20 14.3% 4.1%;
   --border: 20 5.9% 90%;
   --input: 20 5.9% 90%;
-  --primary: 207 90% 54%;
-  --primary-foreground: 211 100% 99%;
-  --secondary: 60 4.8% 95.9%;
-  --secondary-foreground: 24 9.8% 10%;
-  --accent: 60 4.8% 95.9%;
-  --accent-foreground: 24 9.8% 10%;
+  /* Mintenance Primary Color - Deep Blue #004080 */
+  --primary: 209 100% 25%;
+  --primary-foreground: 0 0% 100%;
+  /* Mintenance Secondary Color - Mint Green #3EB489 */
+  --secondary: 156 49% 47%; 
+  --secondary-foreground: 0 0% 100%;
+  --accent: 156 49% 47%;
+  --accent-foreground: 0 0% 100%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 60 9.1% 97.8%;
-  --ring: 20 14.3% 4.1%;
+  --ring: 209 100% 25%;
   --radius: 0.5rem;
 
-  /* Secondary color for contractor view */
-  --secondary-action: 152 75% 38%;
-  --secondary-action-foreground: 0 0% 100%;
+  /* Mintenance Neutral - #6C757D */
+  --neutral: 210 9% 45%;
+  --neutral-foreground: 0 0% 100%;
   
   /* Chart colors */
-  --chart-1: 207 90% 54%;
-  --chart-2: 152 75% 38%;
+  --chart-1: 209 100% 25%;
+  --chart-2: 156 49% 47%;
   --chart-3: 47 95% 57%;
   --chart-4: 340 80% 55%;
   --chart-5: 248 90% 66%;
@@ -38,12 +40,12 @@
   /* Sidebar */
   --sidebar-background: 0 0% 100%;
   --sidebar-foreground: 20 14.3% 4.1%;
-  --sidebar-primary: 207 90% 54%;
-  --sidebar-primary-foreground: 211 100% 99%;
-  --sidebar-accent: 60 4.8% 95.9%;
-  --sidebar-accent-foreground: 24 9.8% 10%;
+  --sidebar-primary: 209 100% 25%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 156 49% 47%;
+  --sidebar-accent-foreground: 0 0% 100%;
   --sidebar-border: 20 5.9% 90%;
-  --sidebar-ring: 20 14.3% 4.1%;
+  --sidebar-ring: 209 100% 25%;
 }
 
 .dark {

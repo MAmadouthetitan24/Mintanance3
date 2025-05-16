@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mintenance - On-Demand Home Maintenance & Repair Marketplace</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #004080;
+      --secondary-color: #3EB489;
+      --neutral-color: #6C757D;
+      --white: #FFFFFF;
+    }
+
+    .bg-primary {
+      background-color: var(--primary-color);
+    }
+
+    .bg-secondary {
+      background-color: var(--secondary-color);
+    }
+
+    .text-primary {
+      color: var(--primary-color);
+    }
+
+    .text-secondary {
+      color: var(--secondary-color);
+    }
+
+    .border-primary {
+      border-color: var(--primary-color);
+    }
+
+    .border-secondary {
+      border-color: var(--secondary-color);
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: var(--white);
+    }
+
+    .btn-primary:hover {
+      background-color: #003070;
+    }
+
+    .btn-secondary {
+      background-color: var(--secondary-color);
+      color: var(--white);
+    }
+
+    .btn-secondary:hover {
+      background-color: #30A070;
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+    }
+
+    .btn-outline:hover {
+      background-color: var(--primary-color);
+      color: var(--white);
+    }
+
+    .gradient-bg {
+      background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- Navigation -->
+  <nav class="bg-white shadow-sm sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <span class="text-primary font-bold text-xl">Mintenance</span>
+        </div>
+        
+        <div class="hidden md:flex items-center space-x-4">
+          <a href="#features" class="text-gray-500 hover:text-primary px-3 py-2 text-sm font-medium">Features</a>
+          <a href="#services" class="text-gray-500 hover:text-primary px-3 py-2 text-sm font-medium">Services</a>
+          <a href="#how-it-works" class="text-gray-500 hover:text-primary px-3 py-2 text-sm font-medium">How It Works</a>
+          <button class="btn-outline px-4 py-2 rounded-md text-sm font-medium">Login</button>
+          <button class="btn-secondary px-4 py-2 rounded-md text-sm font-medium">Sign Up</button>
+        </div>
+        
+        <div class="md:hidden flex items-center">
+          <button id="mobile-menu-button" class="text-gray-500 hover:text-primary">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Mobile menu -->
+    <div id="mobile-menu" class="md:hidden hidden">
+      <div class="px-2 pt-2 pb-3 space-y-1">
+        <a href="#features" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-primary hover:bg-gray-50">Features</a>
+        <a href="#services" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-primary hover:bg-gray-50">Services</a>
+        <a href="#how-it-works" class="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-primary hover:bg-gray-50">How It Works</a>
+        <button class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-primary hover:bg-gray-50">Login</button>
+        <button class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-secondary hover:bg-gray-50">Sign Up</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <div class="gradient-bg py-20 px-4">
+    <div class="max-w-6xl mx-auto text-center">
+      <h1 class="text-4xl md:text-5xl font-bold text-white mb-6">
+        Mintenance
+      </h1>
+      <p class="text-xl text-white mb-8 max-w-3xl mx-auto">
+        Your on-demand marketplace for home maintenance and repairs
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <button class="px-6 py-3 rounded-full bg-white text-primary font-medium text-lg hover:bg-gray-100 transition">
+          Request a Service
+        </button>
+        <button class="px-6 py-3 rounded-full bg-primary text-white font-medium text-lg border border-white hover:bg-blue-900 transition">
+          Join as a Contractor
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div id="how-it-works" class="py-16 px-4 bg-white">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center text-primary mb-12">
+        How Mintenance Works
+      </h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="text-center p-6 rounded-lg shadow-md border border-gray-100">
+          <div class="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">1</div>
+          <h3 class="text-xl font-semibold text-primary mb-3">Request Service</h3>
+          <p class="text-gray-500">
+            Describe your home maintenance needs and upload photos to help contractors understand the job.
+          </p>
+        </div>
+        
+        <div class="text-center p-6 rounded-lg shadow-md border border-gray-100">
+          <div class="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">2</div>
+          <h3 class="text-xl font-semibold text-primary mb-3">Get Matched</h3>
+          <p class="text-gray-500">
+            Our algorithm instantly finds qualified contractors near you based on your service needs.
+          </p>
+        </div>
+        
+        <div class="text-center p-6 rounded-lg shadow-md border border-gray-100">
+          <div class="w-16 h-16 bg-secondary rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">3</div>
+          <h3 class="text-xl font-semibold text-primary mb-3">Job Complete</h3>
+          <p class="text-gray-500">
+            The contractor arrives, completes the work, and you approve with a digital signature.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Services -->
+  <div id="services" class="py-16 px-4 bg-gray-50">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center text-primary mb-12">
+        Our Services
+      </h2>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">🔧</div>
+          <h3 class="font-medium text-primary">Plumbing</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">⚡</div>
+          <h3 class="font-medium text-primary">Electrical</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">🪚</div>
+          <h3 class="font-medium text-primary">Carpentry</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">🖌️</div>
+          <h3 class="font-medium text-primary">Painting</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">❄️</div>
+          <h3 class="font-medium text-primary">HVAC</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">🏠</div>
+          <h3 class="font-medium text-primary">Roofing</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">🌿</div>
+          <h3 class="font-medium text-primary">Landscaping</h3>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition border border-gray-100 cursor-pointer">
+          <div class="text-3xl mb-2">🧰</div>
+          <h3 class="font-medium text-primary">Appliance Repair</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Uber-like Features -->
+  <div id="features" class="py-16 px-4 bg-white">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center text-primary mb-12">
+        Uber-like Features
+      </h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-12 h-12 bg-secondary rounded-full flex items-center justify-center text-white mr-4">
+            ✓
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold text-primary mb-2">Real-time Matching</h3>
+            <p class="text-gray-500">
+              Instantly connect with available contractors in your area, just like ordering a ride.
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-12 h-12 bg-secondary rounded-full flex items-center justify-center text-white mr-4">
+            ✓
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold text-primary mb-2">Live Tracking</h3>
+            <p class="text-gray-500">
+              Track your contractor's location and status in real-time as they travel to your home.
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-12 h-12 bg-secondary rounded-full flex items-center justify-center text-white mr-4">
+            ✓
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold text-primary mb-2">Two-way Rating System</h3>
+            <p class="text-gray-500">
+              Rate contractors after service completion, and contractors can rate homeowners for better matchmaking.
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-start">
+          <div class="flex-shrink-0 w-12 h-12 bg-secondary rounded-full flex items-center justify-center text-white mr-4">
+            ✓
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold text-primary mb-2">Job Acceptance</h3>
+            <p class="text-gray-500">
+              Contractors can quickly view job details and accept or reject requests based on availability.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- For Homeowners and Contractors Sections -->
+  <div class="py-16 px-4 bg-gray-50">
+    <div class="max-w-6xl mx-auto">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+        <!-- For Homeowners -->
+        <div>
+          <h2 class="text-2xl font-bold text-primary mb-6">For Homeowners</h2>
+          <ul class="space-y-4">
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Submit Detailed Requests</h4>
+                <p class="text-gray-500 text-sm">Provide descriptions and upload photos for contractors to understand your needs.</p>
+              </div>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">View Contractor Profiles</h4>
+                <p class="text-gray-500 text-sm">See ratings, qualifications, and history of assigned contractors.</p>
+              </div>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Schedule Appointments</h4>
+                <p class="text-gray-500 text-sm">Receive and manage appointment proposals from contractors.</p>
+              </div>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Digital Signatures</h4>
+                <p class="text-gray-500 text-sm">Approve completed work and verify job sheets digitally.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- For Contractors -->
+        <div>
+          <h2 class="text-2xl font-bold text-primary mb-6">For Contractors</h2>
+          <ul class="space-y-4">
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Receive Job Requests</h4>
+                <p class="text-gray-500 text-sm">Get matched to jobs based on your location, availability, and expertise.</p>
+              </div>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Calendar Management</h4>
+                <p class="text-gray-500 text-sm">Sync with external calendars and manage your work schedule efficiently.</p>
+              </div>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Digital Job Sheets</h4>
+                <p class="text-gray-500 text-sm">Track time, document work, and upload photos of completed jobs.</p>
+              </div>
+            </li>
+            <li class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-white mr-3 mt-1">
+                ✓
+              </div>
+              <div>
+                <h4 class="font-semibold text-primary">Build Your Reputation</h4>
+                <p class="text-gray-500 text-sm">Receive reviews and ratings to improve your visibility in the marketplace.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-primary text-white py-12 px-4">
+    <div class="max-w-6xl mx-auto">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+          <h3 class="text-lg font-bold mb-4">Mintenance</h3>
+          <p class="text-sm">
+            Your on-demand home maintenance and repair marketplace, connecting homeowners with qualified contractors.
+          </p>
+        </div>
+        
+        <div>
+          <h3 class="text-lg font-bold mb-4">Quick Links</h3>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-sm hover:text-secondary">About Us</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">Services</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">Contact</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">Careers</a></li>
+          </ul>
+        </div>
+        
+        <div>
+          <h3 class="text-lg font-bold mb-4">Resources</h3>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-sm hover:text-secondary">For Contractors</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">For Homeowners</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">Blog</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">FAQ</a></li>
+          </ul>
+        </div>
+        
+        <div>
+          <h3 class="text-lg font-bold mb-4">Legal</h3>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-sm hover:text-secondary">Terms of Service</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">Privacy Policy</a></li>
+            <li><a href="#" class="text-sm hover:text-secondary">Cookie Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="border-t border-blue-700 mt-8 pt-8 text-center">
+        <p class="text-sm">&copy; 2025 Mintenance. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Mobile menu toggle
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    
+    mobileMenuButton.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    // Close mobile menu when clicking on menu items
+    const mobileMenuItems = mobileMenu.querySelectorAll('a, button');
+    mobileMenuItems.forEach(item => {
+      item.addEventListener('click', () => {
+        mobileMenu.classList.add('hidden');
+      });
+    });
+  </script>
+</body>
+</html>

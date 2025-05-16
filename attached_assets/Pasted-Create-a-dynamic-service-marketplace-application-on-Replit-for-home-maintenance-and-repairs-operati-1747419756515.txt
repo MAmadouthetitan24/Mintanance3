@@ -1,0 +1,43 @@
+Create a dynamic service marketplace application on Replit for home maintenance and repairs, operating similarly to Uber. The app should efficiently connect homeowners needing immediate or scheduled services with available and qualified contractors based on location, trade, and performance.
+
+Key features to implement, focusing on the Uber-like model:
+
+**Core Uber-like Functionality:**
+* **Real-time Job Dispatch:** When a homeowner submits a request, the system should quickly identify and notify suitable contractors in the vicinity.
+* **Dynamic Matching Algorithm:** Implement a system that ranks and offers jobs to contractors based on proximity, availability, rating, and trade specialization (like Uber's driver assignment).
+* **Contractor Acceptance/Rejection:** Contractors should be able to view job details and accept or reject requests.
+* **Real-time Job Tracking:** Homeowners should be able to see the assigned contractor's status (e.g., en route, arrived, working) and potentially their location on a map (if feasible within Replit's capabilities).
+* **Rating System:** A two-way rating system (homeowner rates contractor, contractor could potentially rate homeowner/job) to maintain quality and inform future matching, similar to Uber's rating system.
+
+**Additional Features (as per original requirements):**
+* **For Homeowners:**
+    * Submit detailed job requests with photos.
+    * View contractor profiles *after* assignment.
+    * Manage appointments (receive proposals, accept/decline/suggest alternatives).
+    * In-app messaging with assigned contractors.
+    * Review digital job sheets and provide digital signatures.
+* **For Contractors:**
+    * Receive and review job requests.
+    * Submit quotes (potentially to app management initially, as per document).
+    * Manage schedule/availability.
+    * Sync with external calendars.
+    * Use in-app messaging.
+    * Access digital job sheets, track time (check-in/out), add work details, and upload photos.
+    * Obtain digital signatures.
+    * Maintain a contractor bio profile.
+
+**Platform Features:**
+* Refine the smart distribution algorithm to prioritize dynamic, real-time matching.
+* Implement robust in-app messaging.
+* Develop smart scheduling features that integrate with the real-time dispatch.
+* Generate and store job reports.
+* Include support for dispute resolution.
+
+Consider a tech stack suitable for a dynamic web application on Replit:
+
+* **Frontend:** React (for a responsive web interface that can mimic app-like behavior).
+* **Backend:** Node.js with Express.js (excellent for real-time applications with Socket.IO for potential real-time updates) or Python with Flask/Django.
+* **Database:** PostgreSQL or MongoDB (utilize Replit's database offerings).
+* **Basic Real-time/Location Simulation:** Use backend logic to simulate real-time contractor availability and location-based matching. Full, live geolocation tracking might be limited without dedicated mobile apps, but the core matching logic can be built. Implement placeholder logic for payment processing and external calendar sync.
+
+Focus on building the core "Uber-like" matching and dispatch system first, then integrate the other features. The goal is to create a functional prototype demonstrating the dynamic connection between homeowners and contractors.

@@ -1,79 +1,79 @@
-import { useState, useEffect } from "react";
-import Header from "./Header";
-import Sidebar from "./Sidebar";
-import MobileNav from "./MobileNav";
-import { useAuth } from "@/lib/auth";
-import { useIsMobile } from "@/hooks/use-mobile";
+import React from 'react';
+import Navigation from './Navigation';
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  isLoggedIn?: boolean;
+  userRole?: 'homeowner' | 'contractor';
   title?: string;
 }
 
-export default function MainLayout({ children, title }: MainLayoutProps) {
-  const { user } = useAuth();
-  const isMobile = useIsMobile();
-  const [activeRole, setActiveRole] = useState<"homeowner" | "contractor">(
-    user?.role as "homeowner" | "contractor" || "homeowner"
-  );
-  
+const MainLayout: React.FC<MainLayoutProps> = ({ 
+  children, 
+  isLoggedIn = false, 
+  userRole = 'homeowner',
+  title 
+}) => {
   // Set document title
-  useEffect(() => {
-    document.title = title ? `${title} | HomeFixr` : "HomeFixr";
+  React.useEffect(() => {
+    document.title = title ? `${title} | Mintenance` : 'Mintenance';
   }, [title]);
-  
-  // Update active role when user changes
-  useEffect(() => {
-    if (user?.role) {
-      setActiveRole(user.role as "homeowner" | "contractor");
-    }
-  }, [user]);
-  
-  const toggleRole = () => {
-    setActiveRole(activeRole === "homeowner" ? "contractor" : "homeowner");
-  };
-  
+
   return (
-    <div className="flex flex-col h-screen">
-      <Header user={user} />
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Navigation isLoggedIn={isLoggedIn} userRole={userRole} />
       
-      <div className="flex-1 flex overflow-hidden">
-        {!isMobile && <Sidebar user={user} activeRole={activeRole} toggleRole={toggleRole} />}
-        
-        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none pb-16 md:pb-0">
-          {/* Role Switcher - Tab Navigation */}
-          <div className="bg-white shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-center md:justify-start space-x-8 -mb-px">
-                <button 
-                  className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeRole === "homeowner" 
-                      ? "border-primary-500 text-primary-600" 
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                  onClick={() => setActiveRole("homeowner")}
-                >
-                  Homeowner View
-                </button>
-                <button 
-                  className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeRole === "contractor" 
-                      ? "border-primary-500 text-primary-600" 
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                  onClick={() => setActiveRole("contractor")}
-                >
-                  Contractor View
-                </button>
-              </div>
+      <main className="flex-1">
+        {children}
+      </main>
+      
+      <footer className="bg-[#004080] text-white py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+              <h3 className="text-lg font-bold mb-4">Mintenance</h3>
+              <p className="text-sm">
+                Your on-demand home maintenance and repair marketplace, connecting homeowners with qualified contractors.
+              </p>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-bold mb-4">Quick Links</h3>
+              <ul className="space-y-2">
+                <li><a href="/about" className="text-sm hover:text-[#3EB489]">About Us</a></li>
+                <li><a href="/services" className="text-sm hover:text-[#3EB489]">Services</a></li>
+                <li><a href="/contact" className="text-sm hover:text-[#3EB489]">Contact</a></li>
+                <li><a href="/careers" className="text-sm hover:text-[#3EB489]">Careers</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-bold mb-4">Resources</h3>
+              <ul className="space-y-2">
+                <li><a href="/for-contractors" className="text-sm hover:text-[#3EB489]">For Contractors</a></li>
+                <li><a href="/for-homeowners" className="text-sm hover:text-[#3EB489]">For Homeowners</a></li>
+                <li><a href="/blog" className="text-sm hover:text-[#3EB489]">Blog</a></li>
+                <li><a href="/faq" className="text-sm hover:text-[#3EB489]">FAQ</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-bold mb-4">Legal</h3>
+              <ul className="space-y-2">
+                <li><a href="/terms" className="text-sm hover:text-[#3EB489]">Terms of Service</a></li>
+                <li><a href="/privacy" className="text-sm hover:text-[#3EB489]">Privacy Policy</a></li>
+                <li><a href="/cookies" className="text-sm hover:text-[#3EB489]">Cookie Policy</a></li>
+              </ul>
             </div>
           </div>
           
-          {children}
-        </main>
-      </div>
-      
-      {isMobile && <MobileNav />}
+          <div className="border-t border-blue-700 mt-8 pt-8 text-center">
+            <p className="text-sm">&copy; {new Date().getFullYear()} Mintenance. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
-}
+};
+
+export default MainLayout;
