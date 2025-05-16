@@ -466,7 +466,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Assign the contractor to the job
       const updatedJob = await storage.assignContractorToJob(jobId, contractorId);
       
-      res.json(updatedJob);
+      // Get contractor details to personalize the notification
+      const contractor = await storage.getUser(contractorId);
+      
+      // Get homeowner details
+      const homeowner = await storage.getUser(job.homeownerId);
+      
+      // Send real-time notification to the contractor
+      const notificationSent = sendNotification(contractorId, {
+        type: 'new_job_match',
+        jobId: updatedJob?.id,
+        title: updatedJob?.title,
+        description: updatedJob?.description,
+        location: updatedJob?.location || updatedJob?.address,
+        homeownerName: homeowner ? `${homeowner.firstName || ''} ${homeowner.lastName || ''}`.trim() : 'A homeowner',
+        message: `You've been matched with a new job: ${updatedJob?.title}`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Return the updated job with notification status
+      res.json({
+        job: updatedJob,
+        notificationSent,
+        message: 'Contractor successfully assigned to job'
+      });
     } catch (error) {
       console.error('Error assigning contractor to job:', error);
       res.status(500).json({ message: 'Error assigning contractor to job' });
@@ -773,23 +796,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
   
-  // Set up WebSockets for real-time messaging
-  const wss = new WebSocketServer({ server: httpServer });
+  // Set up WebSockets for real-time messaging and notifications
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  wss.on('connection', (ws) => {
+  // Store client connections with user IDs for targeted notifications
+  const clients = new Map<string, WebSocket>();
+  
+  wss.on('connection', (ws, req) => {
     console.log('WebSocket client connected');
+    let userId: string | null = null;
     
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
         console.log('Received message:', data);
         
-        // Broadcast message to all clients
-        wss.clients.forEach((client) => {
-          if (client !== ws) {
-            client.send(JSON.stringify(data));
-          }
-        });
+        // Handle different message types
+        switch (data.type) {
+          case 'auth':
+            // Authenticate and associate the connection with a user ID
+            if (data.userId) {
+              userId = data.userId;
+              clients.set(userId, ws);
+              console.log(`User ${userId} authenticated for notifications`);
+              
+              // Confirm authentication
+              ws.send(JSON.stringify({
+                type: 'auth_success',
+                message: 'Successfully authenticated for notifications'
+              }));
+            }
+            break;
+            
+          case 'chat':
+            // Forward chat message to the recipient if online
+            if (data.recipientId && data.senderId && data.jobId) {
+              const recipient = clients.get(data.recipientId);
+              if (recipient && recipient.readyState === WebSocket.OPEN) {
+                recipient.send(JSON.stringify({
+                  type: 'chat',
+                  senderId: data.senderId,
+                  senderName: data.senderName,
+                  jobId: data.jobId,
+                  message: data.message,
+                  timestamp: new Date().toISOString()
+                }));
+              }
+            } else {
+              // Fallback to broadcasting to all connected clients
+              wss.clients.forEach((client) => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify(data));
+                }
+              });
+            }
+            break;
+            
+          default:
+            // Broadcast other messages to all clients (legacy behavior)
+            wss.clients.forEach((client) => {
+              if (client !== ws && client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify(data));
+              }
+            });
+        }
       } catch (error) {
         console.error('WebSocket message error:', error);
       }
@@ -797,8 +867,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     ws.on('close', () => {
       console.log('WebSocket client disconnected');
+      if (userId) {
+        clients.delete(userId);
+      }
     });
   });
+  
+  // Helper function to send notifications via WebSocket
+  const sendNotification = (userId: string, notification: any) => {
+    const client = clients.get(userId);
+    if (client && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(notification));
+      return true;
+    }
+    return false;
+  };
 
   return httpServer;
 }
