@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { JobSheetForm } from '@/components/job-sheets/JobSheetForm';
 import { format } from 'date-fns';
+
+// Lazily load the map component to improve initial load performance
+const LocationMap = lazy(() => import('@/components/job-sheets/LocationMap'));
 import { 
   Clock, 
   MapPin, 
@@ -194,12 +197,25 @@ export default function JobSheetPage() {
                     <p><span className="font-medium">Time:</span> {format(new Date(jobSheet.checkInTime), 'PPp')}</p>
                     {jobSheet.checkInLocation && (
                       <div className="mt-1">
-                        <p className="flex items-center">
+                        <p className="flex items-center mb-1">
                           <MapPin className="h-4 w-4 mr-1" />
                           <span className="font-medium">Location:</span>
                         </p>
-                        <div className="mt-2 h-[100px] bg-gray-100 rounded-md flex items-center justify-center">
-                          <span className="text-xs text-muted-foreground">Map View</span>
+                        <div className="mt-2">
+                          {typeof window !== 'undefined' && (
+                            <Suspense fallback={
+                              <div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center">
+                                <span className="text-xs text-muted-foreground">Loading map...</span>
+                              </div>
+                            }>
+                              <LocationMap 
+                                location={jobSheet.checkInLocation} 
+                                title="Check-in Location" 
+                                markerColor="green"
+                                className="h-[200px] w-full"
+                              />
+                            </Suspense>
+                          )}
                         </div>
                       </div>
                     )}
@@ -219,12 +235,25 @@ export default function JobSheetPage() {
                     <p><span className="font-medium">Time:</span> {format(new Date(jobSheet.checkOutTime), 'PPp')}</p>
                     {jobSheet.checkOutLocation && (
                       <div className="mt-1">
-                        <p className="flex items-center">
+                        <p className="flex items-center mb-1">
                           <MapPin className="h-4 w-4 mr-1" />
                           <span className="font-medium">Location:</span>
                         </p>
-                        <div className="mt-2 h-[100px] bg-gray-100 rounded-md flex items-center justify-center">
-                          <span className="text-xs text-muted-foreground">Map View</span>
+                        <div className="mt-2">
+                          {typeof window !== 'undefined' && (
+                            <Suspense fallback={
+                              <div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center">
+                                <span className="text-xs text-muted-foreground">Loading map...</span>
+                              </div>
+                            }>
+                              <LocationMap 
+                                location={jobSheet.checkOutLocation} 
+                                title="Check-out Location" 
+                                markerColor="red"
+                                className="h-[200px] w-full"
+                              />
+                            </Suspense>
+                          )}
                         </div>
                       </div>
                     )}

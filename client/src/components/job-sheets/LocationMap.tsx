@@ -48,13 +48,13 @@ const LocationMap: React.FC<LocationMapProps> = ({
   return (
     <div className={className}>
       <MapContainer 
-        center={position} 
         zoom={15} 
+        center={position}
         style={{ height: '100%', width: '100%', borderRadius: '0.375rem' }}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         <Marker position={position}>
           <Popup>
