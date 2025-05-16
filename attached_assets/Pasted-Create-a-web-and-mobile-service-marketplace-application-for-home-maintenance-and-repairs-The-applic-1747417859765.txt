@@ -1,0 +1,40 @@
+Create a web and mobile service marketplace application for home maintenance and repairs. The application should connect homeowners with qualified contractors.
+
+Key features to include are:
+
+**For Homeowners:**
+* Submit job requests with descriptions and photo uploads[cite: 1].
+* Automated matching with suitable contractors (implement a smart distribution algorithm)[cite: 1].
+* View contractor profiles after a job is assigned[cite: 1].
+* Receive appointment proposals and manage scheduling[cite: 1].
+* In-app messaging with assigned contractors[cite: 1].
+* Review digital job sheets and provide digital signatures upon job completion[cite: 1].
+* Rate contractors[cite: 1].
+
+**For Contractors:**
+* Receive job requests based on trade, location, and performance[cite: 1].
+* Submit quotes to the app management team[cite: 1].
+* Manage upcoming jobs with an in-app calendar[cite: 1].
+* Propose time slots for appointments[cite: 1].
+* Sync with external calendars[cite: 1].
+* Use in-app messaging for communication with homeowners post-assignment[cite: 1].
+* Access digital job sheets, check-in/check-out with timestamps, add work details, and upload photos[cite: 1].
+* Obtain digital signatures from homeowners[cite: 1].
+* Have a contractor bio profile visible to homeowners after assignment[cite: 1].
+
+**Platform Features:**
+* Implement a smart distribution algorithm prioritizing local and quality-ranked contractors with fair rotation[cite: 1].
+* Enable in-app messaging with message history per job[cite: 1].
+* Develop smart scheduling with auto-suggested time slots, conflict detection, and location-aware planning[cite: 1].
+* Generate and store auto-generated job reports[cite: 1].
+* Include support for dispute resolution using job sheets and signatures[cite: 1].
+
+Consider using a tech stack suitable for marketplace applications. This could involve:
+
+* **Frontend:** React Native or Flutter for mobile, and React, Angular, or Vue.js for web.
+* **Backend:** Node.js, Python (Django/Flask), or Ruby on Rails.
+* **Database:** PostgreSQL or MySQL, with a potential option for MongoDB for less structured data like reviews.
+* **Cloud Services:** AWS, GCP, or Azure.
+* **Integrations:** Payment gateways (Stripe, PayPal), Geolocation services (Google Maps, Apple Maps), Messaging APIs (SendBird, Pusher), and Analytics (Google Analytics, Firebase Analytics).
+
+Focus on creating a robust and scalable application with a user-friendly interface for both homeowners and contractors.
