@@ -337,17 +337,23 @@ export default function JobSheetPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {jobSheet.photos.map((photo: string, index: number) => (
-                  <div key={index} className="aspect-square overflow-hidden rounded-md border">
-                    <img 
-                      src={photo} 
-                      alt={`Job photo ${index + 1}`} 
-                      className="h-full w-full object-cover"
-                    />
+              {typeof window !== 'undefined' && (
+                <Suspense fallback={
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {jobSheet.photos.map((_, index: number) => (
+                      <div key={index} className="aspect-square bg-gray-100 rounded-md flex items-center justify-center">
+                        <span className="text-xs text-muted-foreground">Loading...</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                }>
+                  <PhotoGallery 
+                    photos={jobSheet.photos} 
+                    title="" 
+                    className="w-full"
+                  />
+                </Suspense>
+              )}
             </CardContent>
           </Card>
         )}
