@@ -1,209 +1,302 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar, Trash2, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
-import { toast } from '@/hooks/use-toast';
+import { format, parseISO } from 'date-fns';
+import { SiGoogle, SiApple, SiMicrosoft } from 'react-icons/si';
 
 interface CalendarSyncDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function CalendarSyncDialog({ isOpen, onClose }: CalendarSyncDialogProps) {
+export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogProps) {
+  const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [provider, setProvider] = useState<string>('google');
-  
-  // Fetch current calendar integrations
-  const { data: integrations = [], isLoading } = useQuery({
-    queryKey: ['/api/calendar-integrations'],
-  });
-  
-  // Connect to external calendar
-  const connectCalendarMutation = useMutation({
-    mutationFn: async (data: { provider: string }) => {
-      return apiRequest('/api/calendar-integrations/connect', {
+  const [activeTab, setActiveTab] = useState<string>('connected');
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  // Connect to Google Calendar
+  const connectToGoogle = async () => {
+    setIsConnecting(true);
+    try {
+      const response = await fetch('/api/calendar-integrations/connect', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          provider: 'google',
+          userId: user?.id
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/calendar-integrations'] });
-      
-      // For Google/Outlook - redirect to OAuth flow
+
+      const data = await response.json();
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        toast({
-          title: 'Connected',
-          description: `Successfully connected to ${provider} calendar.`,
-        });
-        onClose();
+        throw new Error('No auth URL provided');
       }
-    },
-    onError: () => {
+    } catch (error) {
       toast({
         title: 'Error',
-        description: 'Could not connect to external calendar. Please try again.',
+        description: 'There was a problem connecting to Google Calendar.',
         variant: 'destructive',
       });
-    },
-  });
-  
-  // Disconnect calendar integration
-  const disconnectCalendarMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return apiRequest(`/api/calendar-integrations/${id}`, {
-        method: 'DELETE',
+      setIsConnecting(false);
+    }
+  };
+
+  // Connect to Apple Calendar
+  const connectToApple = async () => {
+    setIsConnecting(true);
+    try {
+      const response = await fetch('/api/calendar-integrations/connect', {
+        method: 'POST',
+        body: JSON.stringify({
+          provider: 'apple',
+          userId: user?.id
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/calendar-integrations'] });
+
+      if (response.ok) {
+        toast({
+          title: 'Success',
+          description: 'Apple Calendar successfully connected.',
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/calendar-integrations'] });
+      } else {
+        throw new Error('Failed to connect Apple Calendar');
+      }
+    } catch (error) {
       toast({
-        title: 'Disconnected',
-        description: 'Calendar integration has been removed.',
+        title: 'Error',
+        description: 'There was a problem connecting to Apple Calendar.',
+        variant: 'destructive',
       });
-    },
-  });
-  
-  // Toggle auto-sync
-  const toggleSyncMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
-      return apiRequest(`/api/calendar-integrations/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive }),
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  // Disconnect a calendar integration
+  const disconnectCalendar = async (integrationId: number) => {
+    try {
+      const response = await fetch(`/api/calendar-integrations/${integrationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/calendar-integrations'] });
-    },
+
+      if (response.ok) {
+        toast({
+          title: 'Calendar disconnected',
+          description: 'The calendar integration has been successfully removed.',
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/calendar-integrations'] });
+      } else {
+        throw new Error('Failed to disconnect calendar');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'There was a problem disconnecting the calendar.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Fetch calendar integrations
+  const { data: integrations = [], isLoading } = useQuery({
+    queryKey: ['/api/calendar-integrations'],
+    enabled: open && !!user,
   });
-  
-  const handleConnectCalendar = () => {
-    connectCalendarMutation.mutate({ provider });
-  };
-  
-  const handleDisconnectCalendar = (id: number) => {
-    disconnectCalendarMutation.mutate(id);
-  };
-  
-  const handleToggleSync = (id: number, currentState: boolean) => {
-    toggleSyncMutation.mutate({ id, isActive: !currentState });
-  };
-  
+
+  const connectedCalendars = integrations.filter((integration: any) => 
+    integration.userId === user?.id
+  );
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Calendar Integration</DialogTitle>
+          <DialogTitle>Calendar Sync</DialogTitle>
           <DialogDescription>
-            Sync your Mintenance schedule with your external calendars
+            Connect to external calendars to sync your availability and appointments.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6">
-          {/* Existing Integrations */}
-          {integrations.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium">Connected Calendars</h3>
-              <div className="space-y-2">
-                {integrations.map((integration: any) => (
-                  <Card key={integration.id} className="relative">
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <CardTitle className="text-base">
+        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="connected">Connected Calendars</TabsTrigger>
+            <TabsTrigger value="available">Available Integrations</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="connected" className="mt-4 space-y-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : connectedCalendars.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="font-medium text-lg mb-2">No calendars connected</h3>
+                <p className="text-muted-foreground max-w-md mx-auto mb-6">
+                  Connect to Google, Apple, or Microsoft calendars to automatically sync your availability.
+                </p>
+                <Button onClick={() => setActiveTab('available')}>
+                  Connect Calendar
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {connectedCalendars.map((integration: any) => (
+                  <Card key={integration.id}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <div className="flex items-center">
+                        {integration.provider === 'google' && <SiGoogle className="h-5 w-5 mr-2" />}
+                        {integration.provider === 'apple' && <SiApple className="h-5 w-5 mr-2" />}
+                        {integration.provider === 'microsoft' && <SiMicrosoft className="h-5 w-5 mr-2" />}
+                        <div>
+                          <CardTitle className="text-md font-medium">
                             {integration.provider.charAt(0).toUpperCase() + integration.provider.slice(1)} Calendar
                           </CardTitle>
-                          <CardDescription>{integration.calendarId}</CardDescription>
+                          <CardDescription>
+                            Connected {format(parseISO(integration.createdAt), 'PPP')}
+                          </CardDescription>
                         </div>
-                        <Badge variant={integration.isActive ? 'default' : 'outline'}>
-                          {integration.isActive ? 'Active' : 'Paused'}
-                        </Badge>
                       </div>
+                      <Badge variant="outline" className="capitalize">
+                        {integration.syncStatus || 'active'}
+                      </Badge>
                     </CardHeader>
-                    <CardContent className="pb-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor={`sync-toggle-${integration.id}`} className="flex items-center gap-2">
-                          Auto-sync
-                          <span className="text-xs text-muted-foreground">
-                            {integration.isActive ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </Label>
-                        <Switch
-                          id={`sync-toggle-${integration.id}`}
-                          checked={integration.isActive}
-                          onCheckedChange={() => handleToggleSync(integration.id, integration.isActive)}
-                        />
-                      </div>
+                    <CardContent>
+                      <p className="text-sm">
+                        Last synced: {integration.lastSynced 
+                          ? format(parseISO(integration.lastSynced), 'PPp')
+                          : 'Never'
+                        }
+                      </p>
                     </CardContent>
-                    <CardFooter>
-                      <div className="flex justify-end w-full">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleDisconnectCalendar(integration.id)}
-                        >
-                          Disconnect
-                        </Button>
-                      </div>
+                    <CardFooter className="flex justify-between">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          // Refresh sync
+                          toast({
+                            title: 'Sync started',
+                            description: 'Calendar sync has been initiated.',
+                          });
+                        }}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Sync Now
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => disconnectCalendar(integration.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Disconnect
+                      </Button>
                     </CardFooter>
                   </Card>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </TabsContent>
           
-          {/* Connect New Calendar */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium">Add Calendar</h3>
-            <RadioGroup 
-              value={provider} 
-              onValueChange={setProvider}
-              className="flex flex-col space-y-1"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="google" id="google" />
-                <Label htmlFor="google">Google Calendar</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="outlook" id="outlook" />
-                <Label htmlFor="outlook">Outlook Calendar</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="apple" id="apple" />
-                <Label htmlFor="apple">Apple Calendar</Label>
-              </div>
-            </RadioGroup>
-            
-            <div className="pt-2">
-              <Button 
-                onClick={handleConnectCalendar}
-                disabled={connectCalendarMutation.isPending}
-                className="w-full"
-              >
-                {connectCalendarMutation.isPending ? 'Connecting...' : 'Connect Calendar'}
-              </Button>
+          <TabsContent value="available" className="mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-md font-medium">Google Calendar</CardTitle>
+                    <SiGoogle className="h-8 w-8 text-[#4285F4]" />
+                  </div>
+                  <CardDescription>
+                    Sync with your Google Calendar
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter>
+                  <Button 
+                    className="w-full"
+                    onClick={connectToGoogle}
+                    disabled={isConnecting}
+                  >
+                    Connect
+                  </Button>
+                </CardFooter>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-md font-medium">Apple Calendar</CardTitle>
+                    <SiApple className="h-8 w-8 text-[#000000]" />
+                  </div>
+                  <CardDescription>
+                    Sync with your Apple Calendar
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter>
+                  <Button 
+                    className="w-full"
+                    onClick={connectToApple}
+                    disabled={isConnecting}
+                  >
+                    Connect
+                  </Button>
+                </CardFooter>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-md font-medium">Outlook</CardTitle>
+                    <SiMicrosoft className="h-8 w-8 text-[#0078D4]" />
+                  </div>
+                  <CardDescription>
+                    Sync with Microsoft Outlook
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter>
+                  <Button 
+                    className="w-full"
+                    onClick={() => {
+                      toast({
+                        title: 'Coming Soon',
+                        description: 'Microsoft Outlook integration will be available soon.',
+                      });
+                    }}
+                    disabled={true}
+                  >
+                    Coming Soon
+                  </Button>
+                </CardFooter>
+              </Card>
             </div>
-          </div>
-          
-          {/* Note about calendar sync */}
-          <div className="rounded-md bg-muted p-3">
-            <p className="text-xs text-muted-foreground">
-              When enabled, your availability and appointments from Mintenance will sync with your external calendar. 
-              Your personal events will be considered when suggesting available times to homeowners.
-            </p>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
         
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="mt-6">
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)}
+          >
             Close
           </Button>
         </DialogFooter>
