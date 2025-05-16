@@ -1,14 +1,26 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { index } from "drizzle-orm/pg-core";
+
+// Session storage table (required for Replit Auth)
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
 
 // Users table - for both homeowners and contractors
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
+  id: varchar("id").primaryKey().notNull(), // Use Replit Auth ID
+  email: varchar("email"),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
   phone: text("phone"),
   address: text("address"),
   city: text("city"),
@@ -16,10 +28,11 @@ export const users = pgTable("users", {
   zip: text("zip"),
   role: text("role").notNull().default("homeowner"), // homeowner or contractor
   bio: text("bio"),
-  profileImage: text("profile_image"),
   isActive: boolean("is_active").default(true),
   averageRating: real("average_rating").default(0),
   reviewCount: integer("review_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Trade categories for contractors
@@ -33,7 +46,7 @@ export const trades = pgTable("trades", {
 // Contractor specializations
 export const contractorTrades = pgTable("contractor_trades", {
   id: serial("id").primaryKey(),
-  contractorId: integer("contractor_id").notNull().references(() => users.id),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
   tradeId: integer("trade_id").notNull().references(() => trades.id),
   yearsOfExperience: integer("years_of_experience").default(0),
   isVerified: boolean("is_verified").default(false),
@@ -45,8 +58,8 @@ export const jobStatuses = ["pending", "matched", "scheduled", "in_progress", "c
 // Job table
 export const jobs = pgTable("jobs", {
   id: serial("id").primaryKey(),
-  homeownerId: integer("homeowner_id").notNull().references(() => users.id),
-  contractorId: integer("contractor_id").references(() => users.id),
+  homeownerId: varchar("homeowner_id").notNull().references(() => users.id),
+  contractorId: varchar("contractor_id").references(() => users.id),
   title: text("title").notNull(),
   description: text("description").notNull(),
   tradeId: integer("trade_id").references(() => trades.id),
@@ -67,7 +80,7 @@ export const jobs = pgTable("jobs", {
 export const quotes = pgTable("quotes", {
   id: serial("id").primaryKey(),
   jobId: integer("job_id").notNull().references(() => jobs.id),
-  contractorId: integer("contractor_id").notNull().references(() => users.id),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
   amount: integer("amount").notNull(), // in cents
   description: text("description"),
   estimatedDuration: integer("estimated_duration"), // in minutes
@@ -79,8 +92,8 @@ export const quotes = pgTable("quotes", {
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   jobId: integer("job_id").notNull().references(() => jobs.id),
-  senderId: integer("sender_id").notNull().references(() => users.id),
-  receiverId: integer("receiver_id").notNull().references(() => users.id),
+  senderId: varchar("sender_id").notNull().references(() => users.id),
+  receiverId: varchar("receiver_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   isRead: boolean("is_read").default(false),
@@ -105,8 +118,8 @@ export const jobSheets = pgTable("job_sheets", {
 export const reviews = pgTable("reviews", {
   id: serial("id").primaryKey(),
   jobId: integer("job_id").notNull().references(() => jobs.id),
-  homeownerId: integer("homeowner_id").notNull().references(() => users.id),
-  contractorId: integer("contractor_id").notNull().references(() => users.id),
+  homeownerId: varchar("homeowner_id").notNull().references(() => users.id),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
   rating: integer("rating").notNull(), // 1-5
   comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -115,7 +128,7 @@ export const reviews = pgTable("reviews", {
 // Schedule slots for contractors
 export const scheduleSlots = pgTable("schedule_slots", {
   id: serial("id").primaryKey(),
-  contractorId: integer("contractor_id").notNull().references(() => users.id),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
   isBooked: boolean("is_booked").default(false),
@@ -123,7 +136,13 @@ export const scheduleSlots = pgTable("schedule_slots", {
 });
 
 // INSERT SCHEMAS
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, averageRating: true, reviewCount: true });
+export const insertUserSchema = createInsertSchema(users).omit({ 
+  id: true, 
+  averageRating: true, 
+  reviewCount: true,
+  createdAt: true,
+  updatedAt: true
+});
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true });
 export const insertContractorTradeSchema = createInsertSchema(contractorTrades).omit({ id: true });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true, createdAt: true, updatedAt: true, contractorId: true, status: true });
@@ -136,6 +155,7 @@ export const insertScheduleSlotSchema = createInsertSchema(scheduleSlots).omit({
 // TYPES
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpsertUser = typeof users.$inferInsert;
 
 export type Trade = typeof trades.$inferSelect;
 export type InsertTrade = z.infer<typeof insertTradeSchema>;
@@ -161,20 +181,33 @@ export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type ScheduleSlot = typeof scheduleSlots.$inferSelect;
 export type InsertScheduleSlot = z.infer<typeof insertScheduleSlotSchema>;
 
-// Extended registration schema for front-end validation
-export const registerUserSchema = insertUserSchema.extend({
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+// Extended user profile schema for additional info after sign up
+export const userProfileSchema = z.object({
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
+  role: z.enum(["homeowner", "contractor"]).default("homeowner"),
+  bio: z.string().optional(),
 });
 
-export type RegisterUser = z.infer<typeof registerUserSchema>;
+export type UserProfile = z.infer<typeof userProfileSchema>;
 
-// Login schema
+// Login schema - needed for our routes file
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
 export type LoginUser = z.infer<typeof loginSchema>;
+
+// Registration schema - needed for our routes file
+export const registerUserSchema = insertUserSchema.extend({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});

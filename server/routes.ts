@@ -1,23 +1,16 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
-  loginSchema, registerUserSchema, insertJobSchema, 
-  insertReviewSchema, insertMessageSchema, insertQuoteSchema,
-  insertJobSheetSchema, insertScheduleSlotSchema
+  insertJobSchema, insertReviewSchema, insertMessageSchema, 
+  insertQuoteSchema, insertJobSheetSchema, insertScheduleSlotSchema
 } from "@shared/schema";
-import session from "express-session";
-import MemoryStore from "memorystore";
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import * as crypto from "crypto";
 import * as path from "path";
 import multer from "multer";
 import { existsSync, mkdirSync } from "fs";
 import { WebSocketServer } from "ws";
-
-// Initialize session store
-const SessionStore = MemoryStore(session);
+import crypto from "crypto";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 // Set up storage for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -48,7 +41,8 @@ const upload = multer({
   }
 });
 
-// Password hashing helper function
+// Note: These password functions are no longer needed with Replit Auth
+// But keeping them for reference in case we need to implement custom auth later
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -62,142 +56,24 @@ function verifyPassword(password: string, hashedPassword: string): boolean {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Configure session middleware
-  app.use(session({
-    cookie: { maxAge: 86400000 }, // 24 hours
-    store: new SessionStore({
-      checkPeriod: 86400000 // prune expired entries every 24h
-    }),
-    resave: false,
-    saveUninitialized: false,
-    secret: process.env.SESSION_SECRET || 'homeFixrSecret',
-  }));
-
-  // Initialize passport
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  // Set up local strategy
-  passport.use(new LocalStrategy(async (username, password, done) => {
-    try {
-      const user = await storage.getUserByUsername(username);
-      if (!user) {
-        return done(null, false, { message: 'Incorrect username.' });
-      }
-      
-      if (!verifyPassword(password, user.password)) {
-        return done(null, false, { message: 'Incorrect password.' });
-      }
-      
-      return done(null, user);
-    } catch (err) {
-      return done(err);
-    }
-  }));
-
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id);
-  });
-
-  passport.deserializeUser(async (id: number, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (err) {
-      done(err);
-    }
-  });
-
+  // Set up Replit Auth middleware
+  await setupAuth(app);
+  
   // Authentication routes
-  app.post('/api/auth/register', async (req, res) => {
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const result = registerUserSchema.safeParse(req.body);
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
       
-      if (!result.success) {
-        return res.status(400).json({ message: 'Invalid registration data', errors: result.error.format() });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
       }
-
-      const { username, email, password, role, ...userData } = result.data;
-
-      // Check if username or email already exists
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        return res.status(400).json({ message: 'Username already exists' });
-      }
-
-      const existingEmail = await storage.getUserByEmail(email);
-      if (existingEmail) {
-        return res.status(400).json({ message: 'Email already exists' });
-      }
-
-      // Hash password
-      const hashedPassword = hashPassword(password);
-
-      // Create user
-      const user = await storage.createUser({
-        username,
-        email,
-        password: hashedPassword,
-        role,
-        ...userData
-      });
-
-      // Remove password from response
-      const { password: _, ...userWithoutPassword } = user;
-      res.status(201).json(userWithoutPassword);
-    } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({ message: 'Error registering user' });
-    }
-  });
-
-  app.post('/api/auth/login', (req, res, next) => {
-    try {
-      const result = loginSchema.safeParse(req.body);
       
-      if (!result.success) {
-        return res.status(400).json({ message: 'Invalid login data', errors: result.error.format() });
-      }
-
-      passport.authenticate('local', (err: any, user: any, info: any) => {
-        if (err) {
-          return next(err);
-        }
-        if (!user) {
-          return res.status(401).json({ message: info.message || 'Authentication failed' });
-        }
-        req.logIn(user, (err) => {
-          if (err) {
-            return next(err);
-          }
-          
-          // Remove password from response
-          const { password, ...userWithoutPassword } = user;
-          return res.json(userWithoutPassword);
-        });
-      })(req, res, next);
+      res.json(user);
     } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({ message: 'Error logging in' });
+      console.error('Error fetching user:', error);
+      res.status(500).json({ message: 'Error fetching user details' });
     }
-  });
-
-  app.get('/api/auth/session', (req, res) => {
-    if (req.isAuthenticated()) {
-      const { password, ...userWithoutPassword } = req.user as any;
-      res.json(userWithoutPassword);
-    } else {
-      res.status(401).json({ message: 'Not authenticated' });
-    }
-  });
-
-  app.post('/api/auth/logout', (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error logging out' });
-      }
-      res.json({ message: 'Logged out successfully' });
-    });
   });
 
   // Trade routes
@@ -518,6 +394,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching messages:', error);
       res.status(500).json({ message: 'Error fetching messages' });
+    }
+  });
+
+  // Smart Matching Algorithm routes
+  app.get('/api/jobs/:jobId/matching-contractors', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const jobId = parseInt(req.params.jobId);
+      
+      // Verify the job exists
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found' });
+      }
+      
+      // Only the homeowner who created the job can see matching contractors
+      if (job.homeownerId !== user.claims.sub && user.role !== 'admin') {
+        return res.status(403).json({ message: 'Not authorized to view matching contractors for this job' });
+      }
+      
+      // Find matching contractors using our smart algorithm
+      const matchingContractors = await storage.findMatchingContractors(jobId);
+      
+      // Only return essential information about contractors to protect privacy
+      const contractorProfiles = matchingContractors.map(contractor => ({
+        id: contractor.id,
+        firstName: contractor.firstName,
+        lastName: contractor.lastName,
+        profileImageUrl: contractor.profileImageUrl,
+        averageRating: contractor.averageRating,
+        reviewCount: contractor.reviewCount,
+        city: contractor.city,
+        state: contractor.state
+      }));
+      
+      res.json(contractorProfiles);
+    } catch (error) {
+      console.error('Error finding matching contractors:', error);
+      res.status(500).json({ message: 'Error finding matching contractors' });
+    }
+  });
+  
+  // Assign contractor to job
+  app.post('/api/jobs/:jobId/assign', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const jobId = parseInt(req.params.jobId);
+      const { contractorId } = req.body;
+      
+      if (!contractorId) {
+        return res.status(400).json({ message: 'Contractor ID is required' });
+      }
+      
+      // Verify the job exists
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: 'Job not found' });
+      }
+      
+      // Only the homeowner who created the job can assign contractors
+      if (job.homeownerId !== user.claims.sub && user.role !== 'admin') {
+        return res.status(403).json({ message: 'Not authorized to assign contractors to this job' });
+      }
+      
+      // Check if job already has a contractor
+      if (job.contractorId) {
+        return res.status(400).json({ message: 'This job already has an assigned contractor' });
+      }
+      
+      // Assign the contractor to the job
+      const updatedJob = await storage.assignContractorToJob(jobId, contractorId);
+      
+      res.json(updatedJob);
+    } catch (error) {
+      console.error('Error assigning contractor to job:', error);
+      res.status(500).json({ message: 'Error assigning contractor to job' });
     }
   });
 

@@ -1,298 +1,266 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
-import type { User, Review } from "@shared/schema";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useState } from "react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
-import { getInitials, formatDate } from "@/lib/utils";
-import { ChevronLeft, MapPin, Phone, Mail, Calendar, Star } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { formatDate, getInitials, getRandomProfileColor } from "@/lib/utils";
+
+import { 
+  Star, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Calendar, 
+  Briefcase, 
+  Award,
+  Check,
+  MessageSquare
+} from "lucide-react";
+
+import ContractorReviews from "./ContractorReviews";
+import AvailabilityCalendar from "./AvailabilityCalendar";
 
 interface ContractorProfileProps {
-  contractorId: number;
+  contractorId: string;
+  jobId?: number;
+  onSendMessage?: () => void;
+  onSchedule?: () => void;
 }
 
-export default function ContractorProfile({ contractorId }: ContractorProfileProps) {
-  // Fetch contractor details
-  const { data: contractor, isLoading: isLoadingContractor } = useQuery<User>({
+export default function ContractorProfile({ 
+  contractorId, 
+  jobId,
+  onSendMessage,
+  onSchedule
+}: ContractorProfileProps) {
+  const [activeTab, setActiveTab] = useState("about");
+  
+  // Fetch contractor data
+  const { data: contractor, isLoading } = useQuery({
     queryKey: [`/api/users/${contractorId}`],
+    enabled: !!contractorId,
   });
   
-  // Fetch contractor's reviews
-  const { data: reviews, isLoading: isLoadingReviews } = useQuery<Review[]>({
-    queryKey: [`/api/reviews/contractor/${contractorId}`],
+  // Fetch contractor trades
+  const { data: contractorTrades } = useQuery({
+    queryKey: [`/api/contractors/${contractorId}/trades`],
+    enabled: !!contractorId,
   });
   
-  if (isLoadingContractor) {
+  if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <Skeleton className="h-8 w-40 mb-4" />
-        </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex flex-col md:flex-row md:items-center">
-            <Skeleton className="h-24 w-24 rounded-full" />
-            <div className="mt-4 md:mt-0 md:ml-6">
-              <Skeleton className="h-8 w-48 mb-2" />
-              <Skeleton className="h-5 w-32 mb-2" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-          </div>
-          
-          <div className="mt-6 border-t pt-6">
-            <Skeleton className="h-6 w-32 mb-4" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        </div>
+      <div className="flex justify-center p-8">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
   
   if (!contractor) {
     return (
-      <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Contractor Not Found</h1>
-        <p className="mb-6">The contractor profile you're looking for doesn't exist.</p>
-        <Button asChild>
-          <Link href="/dashboard">Go to Dashboard</Link>
-        </Button>
+      <div className="text-center p-8">
+        <p className="text-gray-500">Contractor information not found</p>
       </div>
     );
   }
   
-  // Calculate rating stats
-  const calculateRatingStats = () => {
-    if (!reviews || reviews.length === 0) {
-      return {
-        average: 0,
-        counts: [0, 0, 0, 0, 0],
-        total: 0
-      };
-    }
-    
-    const counts = [0, 0, 0, 0, 0]; // 5-star, 4-star, etc.
-    let sum = 0;
-    
-    reviews.forEach(review => {
-      sum += review.rating;
-      counts[5 - review.rating]++;
-    });
-    
-    return {
-      average: sum / reviews.length,
-      counts,
-      total: reviews.length
-    };
-  };
-  
-  const ratingStats = calculateRatingStats();
+  const fullName = `${contractor.firstName || ''} ${contractor.lastName || ''}`.trim() || 'Contractor';
   
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/dashboard">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to Dashboard
-          </Link>
-        </Button>
-      </div>
-      
+    <div className="space-y-6">
+      {/* Contractor Header */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src={contractor.profileImage || undefined} />
-              <AvatarFallback className="bg-primary-100 text-primary-700 text-2xl">
-                {getInitials(contractor.name)}
-              </AvatarFallback>
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+            <Avatar className="h-24 w-24 border-2 border-white shadow-md">
+              {contractor.profileImageUrl ? (
+                <AvatarImage src={contractor.profileImageUrl} alt={fullName} />
+              ) : (
+                <AvatarFallback className={`text-xl bg-${getRandomProfileColor()}-500`}>
+                  {getInitials(fullName)}
+                </AvatarFallback>
+              )}
             </Avatar>
-            <div className="mt-4 md:mt-0 md:ml-6">
-              <CardTitle className="text-2xl">{contractor.name}</CardTitle>
-              <p className="text-gray-500">{contractor.tradeName || 'Professional Contractor'}</p>
-              <div className="flex items-center mt-2">
-                <div className="flex">
-                  {Array(5).fill(0).map((_, i) => (
-                    <Star 
-                      key={i} 
-                      className={`h-4 w-4 ${i < Math.floor(contractor.averageRating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
-                    />
-                  ))}
-                </div>
-                <span className="text-sm text-gray-500 ml-2">
-                  {contractor.averageRating?.toFixed(1) || '0.0'} ({contractor.reviewCount || '0'} reviews)
+            
+            <div className="flex-1 text-center md:text-left space-y-2">
+              <h2 className="text-2xl font-bold">{fullName}</h2>
+              
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                {contractorTrades?.map((trade: any) => (
+                  <Badge key={trade.id} variant="secondary">
+                    {trade.name}
+                  </Badge>
+                ))}
+              </div>
+              
+              <div className="flex items-center justify-center md:justify-start gap-1 text-amber-500">
+                {[...Array(5)].map((_, i) => (
+                  <Star 
+                    key={i} 
+                    className="h-4 w-4" 
+                    fill={i < Math.round(contractor.averageRating || 0) ? "currentColor" : "none"} 
+                  />
+                ))}
+                <span className="text-gray-500 text-sm ml-1">
+                  ({contractor.reviewCount || 0} reviews)
                 </span>
               </div>
+              
+              {contractor.location && (
+                <div className="flex items-center justify-center md:justify-start gap-1 text-gray-500">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-sm">{contractor.location}</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              {onSendMessage && (
+                <Button onClick={onSendMessage} variant="outline" size="sm">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Send Message
+                </Button>
+              )}
+              
+              {onSchedule && (
+                <Button onClick={onSchedule} size="sm">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Schedule
+                </Button>
+              )}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="about">
-            <TabsList>
-              <TabsTrigger value="about">About</TabsTrigger>
-              <TabsTrigger value="reviews">Reviews</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="about">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium">Bio</h3>
-                  <p className="text-gray-700 mt-2">
-                    {contractor.bio || 'No bio provided.'}
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium">Contact Information</h3>
-                    <ul className="mt-2 space-y-2">
-                      {contractor.email && (
-                        <li className="flex items-center text-gray-700">
-                          <Mail className="h-4 w-4 mr-2 text-gray-500" />
-                          {contractor.email}
-                        </li>
-                      )}
-                      {contractor.phone && (
-                        <li className="flex items-center text-gray-700">
-                          <Phone className="h-4 w-4 mr-2 text-gray-500" />
-                          {contractor.phone}
-                        </li>
-                      )}
-                      {contractor.city && (
-                        <li className="flex items-center text-gray-700">
-                          <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                          {contractor.city}{contractor.state ? `, ${contractor.state}` : ''}
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-lg font-medium">Experience</h3>
-                    <ul className="mt-2 space-y-2">
-                      {contractor.tradeExperience ? (
-                        contractor.tradeExperience.map((exp, index) => (
-                          <li key={index} className="text-gray-700">
-                            <span className="font-medium">{exp.tradeName}</span>: {exp.years} years
-                          </li>
-                        ))
-                      ) : (
-                        <li className="text-gray-500">Experience information not available</li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-                
-                <div className="flex justify-center mt-6">
-                  <Button asChild>
-                    <Link href="/job-request">
-                      Request Service
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="reviews">
-              <div className="space-y-6">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <span className="text-3xl font-bold">{ratingStats.average.toFixed(1)}</span>
-                        <div className="ml-4">
-                          <div className="flex">
-                            {Array(5).fill(0).map((_, i) => (
-                              <Star 
-                                key={i} 
-                                className={`h-5 w-5 ${i < Math.floor(ratingStats.average) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
-                              />
-                            ))}
-                          </div>
-                          <p className="text-sm text-gray-500">{ratingStats.total} reviews</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="hidden md:block w-80">
-                      {[5, 4, 3, 2, 1].map((stars) => (
-                        <div key={stars} className="flex items-center">
-                          <span className="text-xs text-gray-500 w-8">{stars} star</span>
-                          <div className="w-48 h-2 mx-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-yellow-400 rounded-full"
-                              style={{ width: `${ratingStats.total ? (ratingStats.counts[5-stars] / ratingStats.total * 100) : 0}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs text-gray-500 w-6">{ratingStats.counts[5-stars]}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                
-                {isLoadingReviews ? (
-                  <div className="space-y-4">
-                    {Array(3).fill(0).map((_, index) => (
-                      <Card key={index}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center mb-3">
-                            <Skeleton className="h-10 w-10 rounded-full" />
-                            <div className="ml-3">
-                              <Skeleton className="h-4 w-32 mb-1" />
-                              <Skeleton className="h-3 w-24" />
-                            </div>
-                          </div>
-                          <div className="mb-2">
-                            <Skeleton className="h-3 w-20" />
-                          </div>
-                          <Skeleton className="h-12 w-full" />
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : reviews && reviews.length > 0 ? (
-                  <div className="space-y-4">
-                    {reviews.map((review) => (
-                      <Card key={review.id}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center mb-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarFallback className="bg-gray-100 text-gray-700">
-                                {getInitials(review.homeownerName || 'C')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="ml-3">
-                              <p className="font-medium">{review.homeownerName || 'Homeowner'}</p>
-                              <p className="text-sm text-gray-500">{formatDate(review.createdAt)}</p>
-                            </div>
-                          </div>
-                          <div className="flex mb-2">
-                            {Array(5).fill(0).map((_, i) => (
-                              <Star 
-                                key={i} 
-                                className={`h-4 w-4 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} 
-                              />
-                            ))}
-                          </div>
-                          <p className="text-gray-700">{review.comment}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-6">
-                    <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                    <h3 className="text-lg font-medium">No Reviews Yet</h3>
-                    <p className="text-gray-500">This contractor hasn't received any reviews yet.</p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
         </CardContent>
       </Card>
+      
+      {/* Tabs */}
+      <Tabs defaultValue="about" onValueChange={setActiveTab} value={activeTab}>
+        <TabsList className="grid grid-cols-3 mb-6">
+          <TabsTrigger value="about">About</TabsTrigger>
+          <TabsTrigger value="reviews">Reviews</TabsTrigger>
+          <TabsTrigger value="availability">Availability</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="about" className="space-y-6">
+          {/* Bio */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">About</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {contractor.bio ? (
+                <p className="text-gray-700">{contractor.bio}</p>
+              ) : (
+                <p className="text-gray-500 italic">No bio provided</p>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Services & Experience */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Services & Experience</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {contractorTrades && contractorTrades.length > 0 ? (
+                <div className="space-y-4">
+                  {contractorTrades.map((trade: any) => (
+                    <div key={trade.id} className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="h-5 w-5 text-primary" />
+                        <h3 className="font-medium">{trade.name}</h3>
+                        {trade.isVerified && (
+                          <Badge variant="outline" className="ml-auto">
+                            <Check className="h-3 w-3 mr-1" />
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {trade.yearsOfExperience > 0 && (
+                        <div className="ml-7 mt-1 text-sm text-gray-500">
+                          {trade.yearsOfExperience} {trade.yearsOfExperience === 1 ? 'year' : 'years'} of experience
+                        </div>
+                      )}
+                      
+                      <Separator className="my-3" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">No services or experience information available</p>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Certifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Certifications & Qualifications</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {contractor.certifications && contractor.certifications.length > 0 ? (
+                <div className="space-y-2">
+                  {contractor.certifications.map((cert: any, index: number) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <Award className="h-5 w-5 text-primary mt-0.5" />
+                      <div>
+                        <h4 className="font-medium">{cert.name}</h4>
+                        {cert.issuer && (
+                          <p className="text-sm text-gray-500">
+                            {cert.issuer}{cert.year ? ` • ${cert.year}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">No certifications listed</p>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Contact Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {contractor.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span>{contractor.email}</span>
+                  </div>
+                )}
+                
+                {contractor.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-gray-500" />
+                    <span>{contractor.phone}</span>
+                  </div>
+                )}
+                
+                {(!contractor.email && !contractor.phone) && (
+                  <p className="text-gray-500 italic">No contact information available</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="reviews">
+          <ContractorReviews contractorId={contractorId} />
+        </TabsContent>
+        
+        <TabsContent value="availability">
+          <AvailabilityCalendar contractorId={contractorId} jobId={jobId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

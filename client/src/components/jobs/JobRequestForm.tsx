@@ -1,106 +1,175 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertJobSchema } from "@shared/schema";
-import type { InsertJob, Trade } from "@shared/schema";
+import { z } from "zod";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import FileUpload from "@/components/shared/FileUpload";
-import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { CalendarIcon, Loader2, ImagePlus, X } from "lucide-react";
+import { format } from "date-fns";
+
+const formSchema = z.object({
+  title: z.string().min(5, { message: "Title must be at least 5 characters" }).max(100),
+  description: z.string().min(20, { message: "Description must be at least 20 characters" }),
+  location: z.string().min(5, { message: "Location is required" }),
+  tradeId: z.string({ required_error: "Please select a trade category" }),
+  preferredDate: z.date().optional(),
+  preferredTime: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function JobRequestForm() {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [, navigate] = useLocation();
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreview, setPhotoPreview] = useState<string[]>([]);
   
-  // Fetch trades for the dropdown
-  const { data: trades, isLoading: isLoadingTrades } = useQuery<Trade[]>({
+  // Fetch trade categories
+  const { data: trades, isLoading: isLoadingTrades } = useQuery({
     queryKey: ['/api/trades'],
-    staleTime: Infinity, // This data rarely changes
   });
   
-  const form = useForm<InsertJob>({
-    resolver: zodResolver(insertJobSchema),
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
       description: "",
       location: "",
-      preferredDate: "",
       preferredTime: "",
     },
   });
   
-  const onSubmit = async (data: InsertJob) => {
-    setIsSubmitting(true);
-    
-    try {
-      // Create FormData for file uploads
+  const createJobMutation = useMutation({
+    mutationFn: async (values: FormValues) => {
       const formData = new FormData();
       
-      // Add job data
-      for (const [key, value] of Object.entries(data)) {
-        if (value !== undefined && value !== null) {
-          formData.append(key, value.toString());
-        }
+      // Add form values
+      formData.append("title", values.title);
+      formData.append("description", values.description);
+      formData.append("location", values.location);
+      formData.append("tradeId", values.tradeId);
+      
+      if (values.preferredDate) {
+        formData.append("preferredDate", format(values.preferredDate, 'yyyy-MM-dd'));
+      }
+      
+      if (values.preferredTime) {
+        formData.append("preferredTime", values.preferredTime);
       }
       
       // Add photos
-      uploadedFiles.forEach(file => {
-        formData.append("photos", file);
+      photos.forEach(photo => {
+        formData.append("photos", photo);
       });
       
-      // Send the request
-      const response = await fetch("/api/jobs", {
-        method: "POST",
+      return apiRequest('/api/jobs', {
+        method: 'POST',
         body: formData,
-        credentials: "include",
       });
-      
-      if (!response.ok) {
-        throw new Error("Failed to create job request");
-      }
-      
-      const result = await response.json();
-      
+    },
+    onSuccess: () => {
       toast({
-        title: "Job request submitted",
-        description: `Your request has been submitted successfully. ${result.matchingContractorsCount} contractors matched.`,
+        title: "Job request submitted successfully",
+        description: "Contractors in your area will be notified.",
       });
-      
-      // Invalidate jobs cache
       queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
-      
-      // Redirect to dashboard or jobs page
-      window.location.href = "/dashboard";
-    } catch (error) {
-      console.error("Error submitting job request:", error);
+      navigate("/dashboard");
+    },
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: "Failed to submit job request. Please try again.",
+        title: "Failed to submit job request",
+        description: error.message || "Please try again",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+  });
   
-  const handleFileChange = (files: File[]) => {
-    setUploadedFiles(files);
-  };
+  async function onSubmit(values: FormValues) {
+    createJobMutation.mutate(values);
+  }
+  
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      const newPhotos = Array.from(e.target.files);
+      
+      if (photos.length + newPhotos.length > 5) {
+        toast({
+          title: "Maximum 5 photos allowed",
+          description: "Please remove some photos before adding more",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setPhotos(prev => [...prev, ...newPhotos]);
+      
+      // Create preview URLs
+      const newPreviews = newPhotos.map(file => URL.createObjectURL(file));
+      setPhotoPreview(prev => [...prev, ...newPreviews]);
+    }
+  }
+  
+  function removePhoto(index: number) {
+    const newPhotos = [...photos];
+    newPhotos.splice(index, 1);
+    setPhotos(newPhotos);
+    
+    const newPreviews = [...photoPreview];
+    URL.revokeObjectURL(newPreviews[index]);
+    newPreviews.splice(index, 1);
+    setPhotoPreview(newPreviews);
+  }
+  
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      photoPreview.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
   
   return (
-    <Card className="w-full max-w-2xl mx-auto">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-2xl font-bold">Submit a New Job Request</CardTitle>
+        <CardTitle>Job Details</CardTitle>
         <CardDescription>
-          Provide details about the home maintenance or repair service you need
+          Provide detailed information about the job you need help with
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -113,7 +182,25 @@ export default function JobRequestForm() {
                 <FormItem>
                   <FormLabel>Job Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Leaky Faucet Repair" {...field} />
+                    <Input placeholder="E.g., Leaking kitchen sink" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Please describe the issue in detail" 
+                      {...field} 
+                      rows={5}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -125,11 +212,10 @@ export default function JobRequestForm() {
               name="tradeId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(parseInt(value))}
-                    defaultValue={field.value?.toString()}
-                    disabled={isLoadingTrades}
+                  <FormLabel>Trade Category</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -138,9 +224,11 @@ export default function JobRequestForm() {
                     </FormControl>
                     <SelectContent>
                       {isLoadingTrades ? (
-                        <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        <SelectItem value="loading" disabled>
+                          Loading...
+                        </SelectItem>
                       ) : (
-                        trades?.map((trade) => (
+                        trades?.map((trade: any) => (
                           <SelectItem key={trade.id} value={trade.id.toString()}>
                             {trade.name}
                           </SelectItem>
@@ -155,49 +243,56 @@ export default function JobRequestForm() {
             
             <FormField
               control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Describe the issue in detail..." 
-                      className="min-h-[120px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location in Home</FormLabel>
+                  <FormLabel>Location</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Kitchen, Bathroom" {...field} />
+                    <Input placeholder="Your address" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    Specify where in your home the issue is located
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <FormField
                 control={form.control}
                 name="preferredDate"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Preferred Date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Preferred Date (Optional)</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) =>
+                            date < new Date(new Date().setHours(0, 0, 0, 0))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -208,8 +303,8 @@ export default function JobRequestForm() {
                 name="preferredTime"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preferred Time</FormLabel>
-                    <Select
+                    <FormLabel>Preferred Time (Optional)</FormLabel>
+                    <Select 
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
@@ -219,9 +314,9 @@ export default function JobRequestForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Morning (8AM - 12PM)">Morning (8AM - 12PM)</SelectItem>
-                        <SelectItem value="Afternoon (12PM - 4PM)">Afternoon (12PM - 4PM)</SelectItem>
-                        <SelectItem value="Evening (4PM - 8PM)">Evening (4PM - 8PM)</SelectItem>
+                        <SelectItem value="morning">Morning (8AM - 12PM)</SelectItem>
+                        <SelectItem value="afternoon">Afternoon (12PM - 4PM)</SelectItem>
+                        <SelectItem value="evening">Evening (4PM - 8PM)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -231,20 +326,51 @@ export default function JobRequestForm() {
             </div>
             
             <div>
-              <FormLabel>Upload Photos</FormLabel>
-              <FileUpload
-                maxFiles={5}
-                acceptedFileTypes={["image/jpeg", "image/png", "image/gif"]}
-                maxSize={10 * 1024 * 1024} // 10MB
-                onFilesChange={handleFileChange}
-              />
+              <FormLabel>Photos (Optional)</FormLabel>
               <FormDescription>
-                Upload photos of the issue to help contractors better understand the job
+                Upload up to 5 photos to help contractors understand the job
               </FormDescription>
+              
+              <div className="mt-2 flex items-center gap-4">
+                <label className="flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <ImagePlus className="h-8 w-8 text-gray-400" />
+                    <p className="mt-1 text-xs text-gray-500">Add Photo</p>
+                  </div>
+                  <Input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={handlePhotoChange} 
+                    disabled={photos.length >= 5}
+                  />
+                </label>
+                
+                {photoPreview.map((url, index) => (
+                  <div key={index} className="relative h-32 w-32">
+                    <img 
+                      src={url} 
+                      alt={`Job photo ${index + 1}`} 
+                      className="h-full w-full rounded-md object-cover" 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      className="absolute -top-2 -right-2 rounded-full bg-white p-1 shadow-md"
+                    >
+                      <X className="h-4 w-4 text-red-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
             
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={createJobMutation.isPending}
+            >
+              {createJobMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Submitting...
@@ -256,11 +382,6 @@ export default function JobRequestForm() {
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="flex justify-center">
-        <p className="text-sm text-gray-500">
-          Your request will be matched with qualified contractors in your area
-        </p>
-      </CardFooter>
     </Card>
   );
 }
