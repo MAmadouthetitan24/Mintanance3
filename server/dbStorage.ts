@@ -7,7 +7,9 @@ import {
   messages, type Message, type InsertMessage,
   jobSheets, type JobSheet, type InsertJobSheet,
   reviews, type Review, type InsertReview,
-  scheduleSlots, type ScheduleSlot, type InsertScheduleSlot
+  scheduleSlots, type ScheduleSlot, type InsertScheduleSlot,
+  appointmentProposals, type AppointmentProposal, type InsertAppointmentProposal,
+  calendarIntegrations, type CalendarIntegration, type InsertCalendarIntegration
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
