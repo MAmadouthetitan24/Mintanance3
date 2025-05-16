@@ -65,6 +65,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register scheduling routes
   app.use('/api', schedulingRoutes);
   
+  // Register job sheets routes
+  app.use('/api', jobSheetsRoutes);
+  
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
