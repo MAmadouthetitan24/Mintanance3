@@ -125,18 +125,24 @@ export function useWebSocket(userId: string | undefined) {
     connectWebSocket(userId);
     
     // Setup status listener
-    const originalOnOpen = socket!.onopen;
-    const originalOnClose = socket!.onclose;
-    
-    socket!.onopen = (event) => {
-      setIsConnected(true);
-      if (originalOnOpen) originalOnOpen.call(socket, event);
-    };
-    
-    socket!.onclose = (event) => {
-      setIsConnected(false);
-      if (originalOnClose) originalOnClose.call(socket, event);
-    };
+    if (socket) {
+      const originalOnOpen = socket.onopen;
+      const originalOnClose = socket.onclose;
+      
+      socket.onopen = (event) => {
+        setIsConnected(true);
+        if (originalOnOpen) {
+          originalOnOpen.call(socket, event);
+        }
+      };
+      
+      socket.onclose = (event) => {
+        setIsConnected(false);
+        if (originalOnClose && socket) {
+          originalOnClose.call(socket, event);
+        }
+      };
+    }
     
     // Clean up on unmount
     return () => {

@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { User, Menu, X, Home, Search, Calendar, MessageSquare, ClipboardList, Bell, LogOut, Settings } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { connectWebSocket, useWebSocket } from '@/lib/websocket';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 
 type NavItem = {
   name: string;
@@ -26,11 +29,24 @@ type NavigationProps = {
 const Navigation: React.FC<NavigationProps> = ({ userRole = 'homeowner', isLoggedIn }) => {
   const [location] = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user } = useAuth();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const closeMenu = () => setIsMenuOpen(false);
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(userRole));
+  
+  // Connect to WebSocket for real-time notifications when user is logged in
+  useEffect(() => {
+    if (user && isLoggedIn) {
+      // For Replit Auth, use claims.sub as the user ID
+      // The user object structure may vary depending on the auth method
+      const userId = user.id || (user as any).claims?.sub;
+      if (userId) {
+        connectWebSocket(userId);
+      }
+    }
+  }, [user, isLoggedIn]);
 
   // Landing page navigation when not logged in
   if (!isLoggedIn) {
@@ -132,9 +148,8 @@ const Navigation: React.FC<NavigationProps> = ({ userRole = 'homeowner', isLogge
           </div>
           
           <div className="hidden md:flex items-center space-x-4">
-            <button className="text-[#6C757D] hover:text-[#004080] p-2">
-              <Bell className="h-5 w-5" />
-            </button>
+            {/* Real-time notification center */}
+            <NotificationCenter />
             
             <div className="relative">
               <button className="flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#3EB489]">
