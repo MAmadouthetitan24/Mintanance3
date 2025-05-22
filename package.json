@@ -60,6 +60,7 @@
     "@babel/core": "^7.27.1",
     "@babel/preset-typescript": "^7.27.1",
     "@babel/runtime": "^7.22.15",
+    "@react-native-community/cli": "^18.0.0",
     "@react-native-community/eslint-config": "^3.2.0",
     "@testing-library/react-native": "^13.2.0",
     "@tsconfig/react-native": "^3.0.2",
