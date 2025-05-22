@@ -11,6 +11,8 @@ import multer from "multer";
 import { existsSync, mkdirSync } from "fs";
 import { WebSocketServer } from "ws";
 import crypto from "crypto";
+import Stripe from "stripe";
+import dotenv from "dotenv";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import schedulingRoutes from "./routes/scheduling";
 import jobSheetsRoutes from "./routes/job-sheets";
@@ -18,6 +20,12 @@ import paymentsRoutes from "./routes/payments";
 
 // Set up storage for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
+
+// Load environment variables
+dotenv.config();
+
+// Initialize Stripe
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: \'2023-10-16\' });
 if (!existsSync(uploadsDir)) {
   mkdirSync(uploadsDir, { recursive: true });
 }
@@ -62,7 +70,7 @@ function verifyPassword(password: string, hashedPassword: string): boolean {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up Replit Auth middleware
   await setupAuth(app);
-  
+
   // Register scheduling routes
   app.use('/api', schedulingRoutes);
   
@@ -71,6 +79,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register payment routes
   app.use('/api', paymentsRoutes);
+
+  // Subscription routes
+  app.post('/api/subscriptions/subscribe', isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId, planId } = req.body; // planId would map to a Stripe Price ID
+
+      if (!userId || !planId) {
+        return res.status(400).json({ message: 'User ID and Plan ID are required' });
+      }
+
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      let stripeCustomerId = user.stripeCustomerId;
+
+      // Create Stripe customer if they don't exist
+      if (!stripeCustomerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || undefined,
+          metadata: {
+            userId: user.id,
+          },
+        });
+        stripeCustomerId = customer.id;
+        await storage.updateUser(userId, { stripeCustomerId });
+      }
+
+      // Create a checkout session for a subscription
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: planId, // Use the Stripe Price ID
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        customer: stripeCustomerId,
+        success_url: `${process.env.CLIENT_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`, // Redirect to success page
+        cancel_url: `${process.env.CLIENT_URL}/subscription/cancel`, // Redirect to cancel page
+        metadata: {
+            userId: userId,
+            planId: planId,
+        }
+      });
+
+      res.json({ url: session.url }); // Send the Checkout Session URL to the client
+
+    } catch (error) {
+      console.error('Error initiating subscription:', error);
+      res.status(500).json({ message: 'Error initiating subscription' });
+    }
+  });
+
+  // Stripe webhook endpoint
+  app.post('/api/stripe/webhook', async (req, res) => {
+    const sig = req.headers['stripe-signature'] as string;
+    const rawBody = (req as any).rawBody; // Access the raw body
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!; // Get your webhook secret from environment variables
+    let event: Stripe.Event;
+
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
+    } catch (err: any) {
+      console.error(`Webhook Error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle the event
+    const data = event.data;
+    const eventType = event.type;
+
+    switch (event.type) {
+      case 'checkout.session.completed':
+        const session = data.object as Stripe.Checkout.Session;
+        // Fulfill the purchase...
+        console.log(`Checkout session completed for customer ${session.customer}`);
+        // Retrieve user and update subscription status (if applicable, e.g., for initial subscription)
+        if (session.customer && session.subscription) {
+          const customerId = session.customer as string;
+          const subscriptionId = session.subscription as string;
+          const user = await storage.getUserByStripeCustomerId(customerId);
+          if (user) {
+            await storage.updateUserSubscription(user.id, { stripeSubscriptionId: subscriptionId });
+            console.log(`User ${user.id} linked to subscription ${subscriptionId}`);
+            // Further updates for subscription tier/end date will come from invoice.payment_succeeded
+          }
+        }
+        break;
+      case 'payment_intent.payment_failed':
+        const failedPaymentIntent = data.object as Stripe.PaymentIntent;
+        console.log(`PaymentIntent ${failedPaymentIntent.id} failed.`);
+        const failedJobId = failedPaymentIntent.metadata.jobId;
+        if (failedJobId) {
+          try {
+            // Call a storage function to update the job status and record failure details
+            await storage.recordPaymentFailure(parseInt(failedJobId), failedPaymentIntent.id, failedPaymentIntent.last_payment_error?.message);
+          } catch (storageError) {
+            console.error('Error recording payment failure in storage:', storageError);
+          }
+        }
+        break;
+      case 'invoice.payment_succeeded':
+        const invoice = data.object as Stripe.Invoice;
+        const subscriptionId = invoice.subscription as string;
+        const customerId = invoice.customer as string;
+        const periodEnd = invoice.lines.data[0].period.end; // Assuming single subscription item
+
+        const user = await storage.getUserByStripeCustomerId(customerId);
+        if (user) {
+          await storage.updateUserSubscription(user.id, { subscriptionEndsAt: new Date(periodEnd * 1000) });
+          console.log(`User ${user.id} subscription updated to end at ${new Date(periodEnd * 1000)}`);
+        }
+      case 'customer.subscription.created':
+      case 'payment_intent.succeeded':
+        const paymentIntent = data.object as Stripe.PaymentIntent;
+        console.log(`PaymentIntent ${paymentIntent.id} succeeded.`);
+        // Extract relevant data from metadata
+        const { jobId: metadataJobId, acceptedQuoteId: metadataAcceptedQuoteId, contractorId: metadataContractorId, homeownerId: metadataHomeownerId } = paymentIntent.metadata;
+
+        if (metadataJobId && metadataAcceptedQuoteId) {
+          try {
+            // Call a storage function to update the job and record payment details
+            // You'll need to create this function in server/storage.ts
+            await storage.recordPaymentSuccess(
+              parseInt(metadataJobId),
+              paymentIntent.id,
+              paymentIntent.amount,
+              paymentIntent.currency,
+              'succeeded', // Payment status
+              paymentIntent.last_payment_error?.message // Include error message if any
+            );
+            console.log(`Job ${metadataJobId} payment recorded.`);
+          } catch (storageError) {
+            console.error('Error recording payment success in storage:', storageError);
+          }
+        }
+      case 'customer.subscription.updated':
+        const subscription = event.data.object as Stripe.Subscription;
+        // Update user's subscription status in the database
+        await storage.updateUserSubscription(subscription);
+        console.log(`Subscription updated for customer ${subscription.customer}`);
+        break;
+      case 'customer.subscription.deleted':
+        const deletedSubscription = event.data.object as Stripe.Subscription;
+        // Update user's subscription status to 'free' or inactive in the database
+        const userToDeleteSub = await storage.getUserByStripeCustomerId(deletedSubscription.customer as string);
+        if (userToDeleteSub) {
+          await storage.updateUserSubscription(userToDeleteSub.id, { subscriptionTier: 'free', stripeSubscriptionId: null, subscriptionEndsAt: null });
+          console.log(`User ${userToDeleteSub.id} subscription cancelled.`);
+        }
+        console.log(`Subscription deleted for customer ${deletedSubscription.customer}`);
+        break;
+      // Handle other events like invoice.payment_succeeded, etc.
+      default:
+        console.log(`Unhandled event type ${event.type}`);
+    }
+
+    res.json({ received: true });
+  });
   
   // Authentication routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -88,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Error fetching user details' });
     }
   });
-
+  
   // Trade routes
   app.get('/api/trades', async (req, res) => {
     try {
@@ -107,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-      
+
       // Remove password from response
       const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
@@ -121,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const contractors = await storage.getContractorsByTrade(parseInt(req.params.tradeId));
       
-      // Remove passwords
+      // Remove passwords (Note: Replit Auth handles auth, password field might not be used but good practice)
       const contractorsWithoutPasswords = contractors.map(c => {
         const { password, ...withoutPassword } = c;
         return withoutPassword;
@@ -131,6 +303,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching contractors by trade:', error);
       res.status(500).json({ message: 'Error fetching contractors' });
+    }
+  });
+
+  // Contractor search route (Tinder-like)
+  app.get('/api/contractors/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user as any;
+      const { tradeId, latitude, longitude, radius } = req.query;
+
+      if (!tradeId || !latitude || !longitude) {
+        return res.status(400).json({ message: 'tradeId, latitude, and longitude are required' });
+      }
+
+      const searchRadius = radius ? parseInt(radius) : 600; // Default to 600m
+
+      const contractors = await storage.findContractorsByLocationAndTrade(
+        parseInt(tradeId),
+        parseFloat(latitude),
+        parseFloat(longitude),
+        searchRadius
+      );
+
+      // Map contractors for the card view
+      const contractorCards = contractors.map(contractor => ({
+        id: contractor.id,
+        firstName: contractor.firstName,
+        lastName: contractor.lastName,
+        profileImageUrl: contractor.profileImageUrl,
+        // Add other fields needed for the Tinder card view
+      }));
+      
+      res.json(contractorCards);
+    } catch (error) {
+      console.error('Error searching contractors:', error);
+      res.status(500).json({ message: 'Error searching contractors' });
     }
   });
 
@@ -146,7 +353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Only homeowners can create job requests' });
       }
       
-      // Handle uploaded files
+      // Handle uploaded files (assuming file handling is correctly set up)
       const photos = (req.files as Express.Multer.File[])?.map(file => `/uploads/${file.filename}`) || [];
       
       // Parse job data
@@ -235,8 +442,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Not authorized to update this job' });
       }
       
+      // Handle quote request from homeowner
+      if (user.role === 'homeowner' && req.body.requestQuote === true && req.body.contractorId) {
+        const contractorId = req.body.contractorId;
+        
+        // Verify the specified contractor exists
+        const contractor = await storage.getUser(contractorId);
+        if (!contractor || contractor.role !== 'contractor') {
+          return res.status(400).json({ message: 'Invalid contractor specified for quote request' });
+        }
+        
+        // Record the quote request
+        // TODO: Implement storage.recordQuoteRequest function
+        // await storage.recordQuoteRequest(jobId, contractorId);
+        
+        // Consider sending a real-time notification to the contractor
+        // Example: sendNotification(contractorId, { type: 'quote_request', jobId: jobId, message: `You have a new quote request for job: ${job.title}` });
+        
+        // Return a success response for the quote request
+        return res.json({ message: 'Quote request sent successfully' });
+      }
+      
+      // Handle quote acceptance from homeowner
+      if (user.role === 'homeowner' && req.body.acceptedQuoteId) {
+        const acceptedQuoteId = parseInt(req.body.acceptedQuoteId);
+        
+        // Verify that the acceptedQuoteId is valid and corresponds to a quote for this job
+        const acceptedQuote = await storage.getQuote(acceptedQuoteId); // Assuming a getQuote function exists
+        if (!acceptedQuote || acceptedQuote.jobId !== jobId) {
+          return res.status(400).json({ message: 'Invalid quote specified for acceptance' });
+        }
+        
+        // Call the storage function to accept the quote
+        const updatedJob = await storage.acceptQuote(jobId, acceptedQuoteId);
+
+        if (!updatedJob) {
+          return res.status(400).json({ message: 'Failed to accept quote' });
+        }
+        
+        try {
+          // Fetch the accepted quote again to get amount and currency
+          const quoteForPayment = await storage.getQuote(acceptedQuoteId); // Assuming getQuote exists
+
+          if (!quoteForPayment) {
+            // This should not happen if acceptQuote succeeded, but as a safeguard
+             console.error(`Accepted quote ${acceptedQuoteId} not found for payment intent.`);
+          } else {
+            // TODO: Ensure quote has amount and currency fields in the database and schema
+            const amountInSmallestUnit = Math.round(quoteForPayment.amount * 100); // Convert to cents
+            const currency = quoteForPayment.currency || 'usd'; // Default to USD if not in quote table
+
+            // Create a Stripe Payment Intent
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amountInSmallestUnit,
+              currency: currency,
+              description: `Payment for Job ID: ${jobId}, Quote ID: ${acceptedQuoteId}`,
+              metadata: {
+                jobId: jobId,
+                acceptedQuoteId: acceptedQuoteId,
+                contractorId: acceptedQuote.contractorId,
+                homeownerId: user.id
+              },
+            });
+
+            // TODO: Send notifications to the accepted contractor and other bidders
+
+            // Return the client secret to the frontend for payment confirmation
+            return res.json({
+              message: 'Quote accepted, payment initiation required',
+              job: updatedJob,
+              clientSecret: paymentIntent.client_secret,
+            });
+          }
+        } catch (stripeError) {
+          console.error('Error creating Stripe Payment Intent:', stripeError);
+          // Optionally revert the job status or handle this failure appropriately
+          return res.status(500).json({ message: 'Error initiating payment for accepted quote' });
+        }
+      }
+
+
+      // Existing logic for other job updates
+      // Ensure req.body doesn't contain requestQuote or contractorId if not a quote request
+      delete req.body.requestQuote;
+      delete req.body.contractorId;
       const updatedJob = await storage.updateJob(jobId, req.body);
-      res.json(updatedJob);
+      res.status(200).json(updatedJob);
     } catch (error) {
       console.error('Error updating job:', error);
       res.status(500).json({ message: 'Error updating job' });
@@ -274,7 +565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/quotes/job/:jobId', async (req, res) => {
+  app.get('/api/jobs/:jobId/quotes', async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ message: 'Not authenticated' });
@@ -293,7 +584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Not authorized to view quotes for this job' });
       }
       
-      const quotes = await storage.getQuotesByJob(jobId);
+      const quotes = await storage.getQuotesByJobId(jobId); // Use the new function
       res.json(quotes);
     } catch (error) {
       console.error('Error fetching quotes:', error);
@@ -509,6 +800,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Contractor profile route
+  app.get('/api/contractors/:id/profile', async (req, res) => {
+    try {
+      const contractorId = parseInt(req.params.id);
+
+      // Get contractor details
+      const contractor = await storage.getUser(contractorId);
+
+      if (!contractor || contractor.role !== 'contractor') {
+        return res.status(404).json({ message: 'Contractor not found' });
+      }
+
+      // Get reviews for the contractor
+      const reviews = await storage.getReviewsByContractor(contractorId);
+
+      // TODO: Fetch and include portfolio data here
+      const portfolio = []; // Placeholder for portfolio data
+
+      res.json({ ...contractor, reviews, portfolio });
+    } catch (error) {
+      console.error('Error fetching contractor profile:', error);
+      res.status(500).json({ message: 'Error fetching contractor profile' });
+    }
+  });
+
   // Job Sheet routes
   app.post('/api/job-sheets', upload.array('photos', 10), async (req, res) => {
     try {
@@ -711,6 +1027,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching reviews:', error);
       res.status(500).json({ message: 'Error fetching reviews' });
+    }
+  });
+
+  // Notification routes
+  app.get('/api/notifications', isAuthenticated, async (req: any, res) => {
+    try {
+      // Assume req.user.id contains the current user's ID from authentication middleware
+      const userId = req.user.id; // Adjust based on how your auth middleware provides user ID
+
+      const notifications = await storage.getNotificationsByUser(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      res.status(500).json({ message: 'Error fetching notifications' });
     }
   });
 

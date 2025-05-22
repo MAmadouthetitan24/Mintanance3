@@ -27,6 +27,8 @@ export const users = pgTable("users", {
   state: text("state"),
   zip: text("zip"),
   role: text("role").notNull().default("homeowner"), // homeowner or contractor
+  latitude: numeric("latitude"),
+  longitude: numeric("longitude"),
   bio: text("bio"),
   isActive: boolean("is_active").default(true),
   averageRating: real("average_rating").default(0),
@@ -41,6 +43,13 @@ export const users = pgTable("users", {
   // Notification preferences
   pushTokens: text("push_tokens").array(),
   notificationPreferences: jsonb("notification_preferences"),
+  // Subscription fields
+  subscriptionTier: text("subscription_tier").default("free"), // 'free', 'premium', 'gold'
+  subscriptionEndsAt: timestamp("subscription_ends_at"),
+  freeRepairsRemaining: integer("free_repairs_remaining").default(0), // For homeowner 'gold' tier
+  businessName: text("business_name"), // Contractor business name
+  licenseNumber: text("license_number"), // Contractor license number
+  yearsInBusiness: integer("years_in_business"), // Contractor years in business
 });
 
 // Trade categories for contractors
@@ -110,6 +119,7 @@ export const quotes = pgTable("quotes", {
   jobId: integer("job_id").notNull().references(() => jobs.id),
   contractorId: varchar("contractor_id").notNull().references(() => users.id),
   amount: integer("amount").notNull(), // in cents
+  currency: text("currency").notNull().default("USD"),
   description: text("description"),
   estimatedDuration: integer("estimated_duration"), // in minutes
   createdAt: timestamp("created_at").defaultNow(),
@@ -262,12 +272,35 @@ export const refunds = pgTable("refunds", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Contractor portfolio table
+export const contractorPortfolios = pgTable("contractor_portfolios", {
+  id: serial("id").primaryKey(),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Job quote requests by homeowners to specific contractors
+export const jobQuoteRequests = pgTable("job_quote_requests", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => jobs.id),
+  contractorId: varchar("contractor_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+
+
 // INSERT SCHEMAS
 export const insertUserSchema = createInsertSchema(users).omit({ 
   id: true, 
   averageRating: true, 
   reviewCount: true,
-  createdAt: true,
+ createdAt: true,
+ latitude: true,
+ longitude: true,
   updatedAt: true
 });
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true });
@@ -288,6 +321,8 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRefundRequestSchema = createInsertSchema(refundRequests).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRefundSchema = createInsertSchema(refunds).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertContractorPortfolioItemSchema = createInsertSchema(contractorPortfolios).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertJobQuoteRequestSchema = createInsertSchema(jobQuoteRequests).omit({ id: true, createdAt: true });
 
 // Type helper to transform null to undefined
 type NullToUndefined<T> = {
@@ -342,6 +377,12 @@ export type InsertPayment = typeof payments.$inferInsert;
 
 export type RefundRequest = typeof refundRequests.$inferSelect;
 export type InsertRefundRequest = typeof refundRequests.$inferInsert;
+
+export type ContractorPortfolioItem = typeof contractorPortfolios.$inferSelect;
+export type InsertContractorPortfolioItem = z.infer<typeof insertContractorPortfolioItemSchema>;
+
+export type JobQuoteRequest = typeof jobQuoteRequests.$inferSelect;
+export type InsertJobQuoteRequest = z.infer<typeof insertJobQuoteRequestSchema>;
 
 export type Refund = typeof refunds.$inferSelect;
 export type InsertRefund = typeof refunds.$inferInsert;
