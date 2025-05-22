@@ -11,6 +11,7 @@ import {
   appointmentProposals, type AppointmentProposal, type InsertAppointmentProposal,
   calendarIntegrations, type CalendarIntegration, type InsertCalendarIntegration
 } from "@shared/schema";
+import { type NullToUndefined } from "@shared/types";
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { IStorage } from "./storage";
@@ -245,20 +246,36 @@ export class DatabaseStorage implements IStorage {
     await db.update(messages).set({ isRead: true }).where(eq(messages.id, id));
   }
 
+  // Helper function to transform null to undefined
+  private transformNullToUndefined<T extends Record<string, any>>(obj: T | null): NullToUndefined<T> | undefined {
+    if (obj === null) return undefined;
+    const transformed = { ...obj } as Record<string, any>;
+    for (const [key, value] of Object.entries(transformed)) {
+      if (value === null) {
+        transformed[key] = undefined;
+      } else if (Array.isArray(value)) {
+        transformed[key] = value.map(item => 
+          item === null ? undefined : item
+        );
+      }
+    }
+    return transformed as NullToUndefined<T>;
+  }
+
   // Job Sheets operations
   async createJobSheet(jobSheet: InsertJobSheet): Promise<JobSheet> {
     const [result] = await db.insert(jobSheets).values(jobSheet).returning();
-    return result;
+    return this.transformNullToUndefined(result)!;
   }
 
   async getJobSheet(id: number): Promise<JobSheet | undefined> {
     const [jobSheet] = await db.select().from(jobSheets).where(eq(jobSheets.id, id));
-    return jobSheet;
+    return this.transformNullToUndefined(jobSheet);
   }
 
   async getJobSheetByJob(jobId: number): Promise<JobSheet | undefined> {
     const [jobSheet] = await db.select().from(jobSheets).where(eq(jobSheets.jobId, jobId));
-    return jobSheet;
+    return this.transformNullToUndefined(jobSheet);
   }
 
   async updateJobSheet(id: number, jobSheetData: Partial<JobSheet>): Promise<JobSheet | undefined> {
@@ -270,7 +287,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(jobSheets.id, id))
       .returning();
-    return result;
+    return this.transformNullToUndefined(result);
   }
 
   // Review operations
@@ -451,17 +468,14 @@ export class DatabaseStorage implements IStorage {
       const availabilityBonus = availableContractorIds.has(contractor.id) ? 0.5 : 0;
       
       // Calculate proximity score based on available location data
-      // In a production app, we would use proper geocoding and distance calculation
       let proximityScore = 0.5; // Default middle score when no location data is available
       
       // If we have location data, use it to refine the proximity score
-      if (contractor.city && contractor.city.length > 0) {
-        if (job.address && job.address.includes(contractor.city)) {
-          proximityScore = 1.0; // Perfect match when city names match
-        } else if (job.city === contractor.city) {
-          proximityScore = 0.9; // Very good match with same city
-        } else if (contractor.state && job.state === contractor.state) {
-          proximityScore = 0.7; // Good match with same state
+      if (contractor.city && contractor.city.length > 0 && job.location) {
+        if (job.location.toLowerCase().includes(contractor.city.toLowerCase())) {
+          proximityScore = 1.0; // Perfect match when city is found in location
+        } else if (contractor.state && job.location.toLowerCase().includes(contractor.state.toLowerCase())) {
+          proximityScore = 0.7; // Good match when state is found in location
         }
       }
       

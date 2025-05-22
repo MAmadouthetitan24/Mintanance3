@@ -38,6 +38,9 @@ export const users = pgTable("users", {
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // Notification preferences
+  pushTokens: text("push_tokens").array(),
+  notificationPreferences: jsonb("notification_preferences"),
 });
 
 // Trade categories for contractors
@@ -59,6 +62,20 @@ export const contractorTrades = pgTable("contractor_trades", {
 
 // Job statuses enum
 export const jobStatuses = ["pending", "matched", "scheduled", "in_progress", "completed", "cancelled"] as const;
+
+// Payment info type
+export const paymentInfoSchema = z.object({
+  transactionId: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  status: z.string(),
+  method: z.string(),
+  receiptUrl: z.string().optional(),
+  error: z.string().optional(),
+  refundId: z.string().optional(),
+});
+
+export type PaymentInfo = z.infer<typeof paymentInfoSchema>;
 
 // Job table
 export const jobs = pgTable("jobs", {
@@ -83,6 +100,8 @@ export const jobs = pgTable("jobs", {
   isPaid: boolean("is_paid").default(false),
   paymentId: text("payment_id"), // Stripe payment intent ID
   paidAt: timestamp("paid_at"),
+  paymentStatus: text("payment_status").default("pending"), // pending, completed, refunded, failed
+  paymentInfo: jsonb("payment_info").$type<PaymentInfo>(),
 });
 
 // Job quotes provided by contractors
@@ -182,6 +201,67 @@ export const appointmentProposals = pgTable("appointment_proposals", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  type: text("type").notNull(), // job_request, job_update, payment, message
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  data: jsonb("data"),
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payments table
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => jobs.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  amount: numeric("amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull(), // pending, succeeded, failed
+  method: text("method").notNull(), // credit_card, bank_transfer, etc.
+  transactionId: text("transaction_id"), // External payment provider's transaction ID
+  receiptUrl: text("receipt_url"),
+  error: text("error"),
+  refundId: text("refund_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Refund requests table
+export const refundRequests = pgTable("refund_requests", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => jobs.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  paymentId: integer("payment_id").notNull().references(() => payments.id),
+  paymentIntentId: text("payment_intent_id").notNull(), // Stripe payment intent ID
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected, processed
+  amount: integer("amount").notNull(), // in cents
+  processedAt: timestamp("processed_at"),
+  error: text("error"),
+  refundId: text("refund_id"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Refunds table
+export const refunds = pgTable("refunds", {
+  id: serial("id").primaryKey(),
+  paymentId: integer("payment_id").notNull().references(() => payments.id),
+  refundRequestId: integer("refund_request_id").references(() => refundRequests.id),
+  amount: numeric("amount").notNull(),
+  status: text("status").notNull(), // pending, succeeded, failed
+  transactionId: text("transaction_id"),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // INSERT SCHEMAS
 export const insertUserSchema = createInsertSchema(users).omit({ 
   id: true, 
@@ -204,6 +284,23 @@ export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, c
 export const insertScheduleSlotSchema = createInsertSchema(scheduleSlots).omit({ id: true });
 export const insertCalendarIntegrationSchema = createInsertSchema(calendarIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppointmentProposalSchema = createInsertSchema(appointmentProposals).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, updatedAt: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRefundRequestSchema = createInsertSchema(refundRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRefundSchema = createInsertSchema(refunds).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Type helper to transform null to undefined
+type NullToUndefined<T> = {
+  [K in keyof T]: T[K] extends null
+    ? undefined
+    : T[K] extends (infer U)[]
+      ? NullToUndefined<U>[]
+      : Exclude<T[K], null> | (null extends T[K] ? undefined : never);
+};
+
+// Export types with null transformed to undefined
+export type JobSheet = NullToUndefined<typeof jobSheets.$inferSelect>;
+export type InsertJobSheet = z.infer<typeof insertJobSheetSchema>;
 
 // TYPES
 export type User = typeof users.$inferSelect;
@@ -225,9 +322,6 @@ export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
-export type JobSheet = typeof jobSheets.$inferSelect;
-export type InsertJobSheet = z.infer<typeof insertJobSheetSchema>;
-
 export type Review = typeof reviews.$inferSelect;
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 
@@ -239,6 +333,18 @@ export type InsertCalendarIntegration = z.infer<typeof insertCalendarIntegration
 
 export type AppointmentProposal = typeof appointmentProposals.$inferSelect;
 export type InsertAppointmentProposal = z.infer<typeof insertAppointmentProposalSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = typeof payments.$inferInsert;
+
+export type RefundRequest = typeof refundRequests.$inferSelect;
+export type InsertRefundRequest = typeof refundRequests.$inferInsert;
+
+export type Refund = typeof refunds.$inferSelect;
+export type InsertRefund = typeof refunds.$inferInsert;
 
 // Extended user profile schema for additional info after sign up
 export const userProfileSchema = z.object({
